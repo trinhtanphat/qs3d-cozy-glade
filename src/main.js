@@ -270,7 +270,7 @@ async function bootstrap() {
           hud?.showToast?.('Đã nhập thiết kế thành công');
         }
       } catch (err) {
-        console.error('[tiny-glade] Failed to import JSON:', err);
+        console.warn('[tiny-glade] Rejected invalid user-provided scene JSON:', err);
         hud?.showToast?.('Không thể đọc tệp JSON thiết kế');
       }
     },

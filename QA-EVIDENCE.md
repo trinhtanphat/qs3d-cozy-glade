@@ -64,3 +64,15 @@ The watchdog operates on two namespaced tasks: QS3D/CozyGlade-Watchdog and QS3D/
 - Worktree: `C:\QS3D-Glade-Island-QA`, isolated port 5487 until merge and production update.
 - Production worktree: `C:\QS3D-Glade-QA`. Keep dedicated Cloudflare tunnel and all unrelated production services/session 2 unchanged. Keep rollback commit and verified backup before release.
 - Origin now sends no-cache with ETag for HTML, JS and CSS to prevent users receiving mismatched old bundle files, plus additional security headers.
+
+## Compact-desktop download hotfix — 13 Nov 2026
+
+A real production browser E2E discovered that at 1280px the clock bar overlapped the Export button, causing Playwright's pointer click to be intercepted. This was a user-facing UI issue, despite the JSON exporter itself being valid. The staging fix uses a dedicated two-row, scrollable layout for widths 761–1349px and repositions the help button. Invalid user-provided JSON is rejected with a handled console warning rather than an uncaught page error.
+
+**Reproduction and full functional fix verified on isolated staging port 5487:**
+1. Chrome 1280×800: click the real `data-action=export` button using pointer interactions, observe a browser Download event.
+2. Save `tiny-glade-scene.json` (~318 KB) and confirm `scene.world.terrain` and `scene.arch.buildings` exist.
+3. Change clock 13:15 → 18:00, upload saved JSON via the real file input, verify clock restores to 13:15 and a success toast.
+4. Upload malformed JSON (`{"world":{}}`), verify rejection and no changes to current scene, zero page/console/network errors.
+Result: **PASS, exit code 0**, `errors:[]`.
+`npm run build` PASS, `npm test` **70/70 PASS**, `git diff --check` PASS.

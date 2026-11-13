@@ -3,3 +3,5 @@
 #qs3d-guide[hidden]{display:none!important}#qs3d-guide h2{font-size:19px;margin:0 0 7px;font-weight:800}#qs3d-guide p{margin:7px 0}#qs3d-guide kbd{font:600 11px monospace;background:#eee4d6;border:1px solid #d4c0aa;border-radius:4px;padding:2px 5px}
 #qs3d-guide a{color:#217269}#qs3d-guide .qs3d-small{font-size:11px;color:#71675c;margin-top:14px}#qs3d-guide-close{float:right;border:none;background:transparent;font:600 21px system-ui;cursor:pointer;color:#5a4c40}
 @media(max-width:680px){#qs3d-guide-toggle{top:150px;right:8px;font-size:11px}#qs3d-guide{top:188px;right:8px;max-height:56vh;width:min(290px,calc(100vw - 16px));padding:13px}}
+
+@media (min-width: 761px) and (max-width: 1349px) { #qs3d-guide-toggle { top: 128px; } #qs3d-guide { top: 172px; max-height: calc(100vh - 190px); } }

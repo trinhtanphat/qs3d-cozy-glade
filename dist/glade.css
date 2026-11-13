@@ -778,3 +778,41 @@
     overflow-y: auto;
   }
 }
+@media (min-width: 761px) and (max-width: 1349px) {
+  .tg-top-left {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    box-sizing: border-box;
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tg-top-left > * {
+    flex-shrink: 0;
+  }
+  .tg-top-right-wrap {
+    top: 66px;
+    left: 12px;
+    right: 12px;
+    align-items: stretch;
+  }
+  .tg-top-right {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tg-top-right > * {
+    flex-shrink: 0;
+  }
+  .tg-top-left::-webkit-scrollbar,
+  .tg-top-right::-webkit-scrollbar {
+    display: none;
+  }
+}
