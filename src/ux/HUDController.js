@@ -274,7 +274,7 @@ export class HUDController {
     const hud = document.createElement('div');
     hud.className = 'tg-hud';
     hud.setAttribute('role', 'region');
-    hud.setAttribute('aria-label', 'Tiny Glade Builder Controls');
+    hud.setAttribute('aria-label', 'Công cụ xây dựng Hòn Đảo Bình Yên');
 
     // =========================================================================
     // 1. TOP-LEFT SCENE & HISTORY BAR
@@ -285,11 +285,11 @@ export class HUDController {
 
     const presetWrap = document.createElement('label');
     presetWrap.className = 'tg-select-wrap';
-    presetWrap.title = 'Load Showcase Diorama Preset';
+    presetWrap.title = 'Chọn bản đồ mẫu';
 
     const presetSelect = document.createElement('select');
     presetSelect.className = 'tg-select';
-    presetSelect.setAttribute('aria-label', 'Scene Preset');
+    presetSelect.setAttribute('aria-label', 'Bản đồ mẫu');
     for (const preset of PRESET_SCENES) {
       const opt = document.createElement('option');
       opt.value = preset.id;
@@ -382,7 +382,7 @@ export class HUDController {
     timeSlider.step = '0.05';
     timeSlider.value = String(this._timeOfDay);
     timeSlider.className = 'tg-slider tg-time-slider';
-    timeSlider.title = 'Scrub Sun & Moon Time of Day (0:00 – 24:00)';
+    timeSlider.title = 'Điều chỉnh thời gian trong ngày (0:00 – 24:00)';
     timeSlider.setAttribute('aria-label', 'Time of Day');
     timeSlider.addEventListener('input', () => {
       const hrs = parseFloat(timeSlider.value);
@@ -529,7 +529,7 @@ export class HUDController {
     // Ergonomic Tool Dock
     const dock = document.createElement('nav');
     dock.className = 'tg-dock tg-interactive';
-    dock.setAttribute('aria-label', 'Building & Landscape Tools');
+    dock.setAttribute('aria-label', 'Công cụ xây dựng và cảnh quan');
     stopCanvasPropagation(dock);
 
     this._toolBtns = new Map();
@@ -581,7 +581,7 @@ export class HUDController {
     captureBtn.type = 'button';
     captureBtn.className = 'tg-btn tg-btn-primary';
     captureBtn.dataset.action = 'capture-png';
-    captureBtn.innerHTML = `<span class="tg-btn-icon">${ICONS.camera}</span><span>Capture PNG</span>`;
+    captureBtn.innerHTML = `<span class="tg-btn-icon">${ICONS.camera}</span><span>Chụp ảnh PNG</span>`;
     captureBtn.addEventListener('click', (e) => {
       this._blurOnPointer(e, captureBtn);
       this._tick();
@@ -1112,7 +1112,7 @@ export class HUDController {
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
         delBtn.className = 'tg-sub-delete-btn';
-        delBtn.title = 'Demolish Selected (Del / Backspace)';
+        delBtn.title = 'Xóa đối tượng đã chọn (Del / Backspace)';
         delBtn.innerHTML = `${ICONS.trash}<span>Demolish</span>`;
         delBtn.addEventListener('click', (e) => {
           this._blurOnPointer(e, delBtn);
@@ -1316,7 +1316,7 @@ export class HUDController {
     group.className = 'tg-swatch-group';
     const lbl = document.createElement('span');
     lbl.className = 'tg-sub-label';
-    lbl.textContent = 'Roof';
+    lbl.textContent = 'Mái nhà';
     group.appendChild(lbl);
 
     for (const sw of ROOF_SWATCHES) {
@@ -1343,7 +1343,7 @@ export class HUDController {
     group.className = 'tg-swatch-group';
     const lbl = document.createElement('span');
     lbl.className = 'tg-sub-label';
-    lbl.textContent = 'Stone';
+    lbl.textContent = 'Đá';
     group.appendChild(lbl);
 
     for (const st of WALL_STYLES) {

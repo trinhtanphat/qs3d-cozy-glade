@@ -87,7 +87,8 @@ async function build() {
     .replace(linkRegex, () => `<style>${minifiedCss}</style>`)
     .replace(scriptRegex, () => `<script>${minifiedJs}</script>`)
     .replace('<link rel="stylesheet" href="./qs3d-guide.css" />', () => '<style>' + guideCss + '</style>')
-    .replace('<script defer src="./qs3d-guide.js"></script>', () => '<script>' + guideJs + '</script>');
+    .replace('<script defer src="./qs3d-guide.js"></script>', () => '<script>' + guideJs + '</script>')
+    .replace(/\r\n?/g, '\n'); // Deterministic LF regardless of Windows checkout mode.
   if (standaloneHtml.includes('./qs3d-guide.css') || standaloneHtml.includes('./qs3d-guide.js')) {
     throw new Error('Standalone HTML still references external guide assets');
   }

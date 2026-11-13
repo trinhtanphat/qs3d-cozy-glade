@@ -37088,10 +37088,10 @@ void main() {
   // src/ux/PresetScenes.js
   var PRESET_SCENES = [
     { id: "qs3d-island", label: "\u0110\u1EA3o Xanh QS3D (M\u1EB7c \u0111\u1ECBnh)" },
-    { id: "lakeside-keep", label: "Lakeside Keep (Default)" },
-    { id: "cotswold-hamlet", label: "Cotswold Brook Hamlet" },
-    { id: "moonlit-abbey", label: "Starlit Castle Ruins" },
-    { id: "empty-meadow", label: "Fresh Meadow" }
+    { id: "lakeside-keep", label: "L\xE2u \u0110\xE0i B\xEAn H\u1ED3" },
+    { id: "cotswold-hamlet", label: "Ng\xF4i L\xE0ng Ven Su\u1ED1i" },
+    { id: "moonlit-abbey", label: "T\xE0n T\xEDch D\u01B0\u1EDBi Tr\u0103ng" },
+    { id: "empty-meadow", label: "\u0110\u1ED3ng C\u1ECF Trong L\xE0nh" }
   ];
   function sculptHill(world, x, z, radius, targetHeight) {
     if (!world?.sculpt || !world?.getHeightAt) return;
@@ -37440,7 +37440,7 @@ void main() {
     finalizeScene({ world, arch, pipeline }, envConfig);
     return {
       id: "lakeside-keep",
-      label: "Lakeside Keep (Default)",
+      label: "L\xE2u \u0110\xE0i B\xEAn H\u1ED3",
       ...envConfig,
       cameraTarget: { x: 0, y: 1.8, z: 3.5 }
     };
@@ -37626,7 +37626,7 @@ void main() {
     finalizeScene({ world, arch, pipeline }, envConfig);
     return {
       id: "cotswold-hamlet",
-      label: "Cotswold Brook Hamlet",
+      label: "Ng\xF4i L\xE0ng Ven Su\u1ED1i",
       ...envConfig,
       cameraTarget: { x: 0, y: 1.2, z: 1.5 }
     };
@@ -37791,7 +37791,7 @@ void main() {
     finalizeScene({ world, arch, pipeline }, envConfig);
     return {
       id: "moonlit-abbey",
-      label: "Starlit Castle Ruins",
+      label: "T\xE0n T\xEDch D\u01B0\u1EDBi Tr\u0103ng",
       ...envConfig,
       cameraTarget: { x: 0, y: 2.4, z: 2.5 }
     };
@@ -37823,7 +37823,7 @@ void main() {
     finalizeScene({ world, arch, pipeline }, envConfig);
     return {
       id: "empty-meadow",
-      label: "Fresh Meadow",
+      label: "\u0110\u1ED3ng C\u1ECF Trong L\xE0nh",
       ...envConfig,
       cameraTarget: { x: 0, y: 0.8, z: 0 }
     };
@@ -38086,16 +38086,16 @@ void main() {
       const hud = document.createElement("div");
       hud.className = "tg-hud";
       hud.setAttribute("role", "region");
-      hud.setAttribute("aria-label", "Tiny Glade Builder Controls");
+      hud.setAttribute("aria-label", "C\xF4ng c\u1EE5 x\xE2y d\u1EF1ng H\xF2n \u0110\u1EA3o B\xECnh Y\xEAn");
       const topLeft = document.createElement("div");
       topLeft.className = "tg-bar tg-top-left tg-interactive";
       stopCanvasPropagation(topLeft);
       const presetWrap = document.createElement("label");
       presetWrap.className = "tg-select-wrap";
-      presetWrap.title = "Load Showcase Diorama Preset";
+      presetWrap.title = "Ch\u1ECDn b\u1EA3n \u0111\u1ED3 m\u1EABu";
       const presetSelect = document.createElement("select");
       presetSelect.className = "tg-select";
-      presetSelect.setAttribute("aria-label", "Scene Preset");
+      presetSelect.setAttribute("aria-label", "B\u1EA3n \u0111\u1ED3 m\u1EABu");
       for (const preset of PRESET_SCENES) {
         const opt = document.createElement("option");
         opt.value = preset.id;
@@ -38170,7 +38170,7 @@ void main() {
       timeSlider.step = "0.05";
       timeSlider.value = String(this._timeOfDay);
       timeSlider.className = "tg-slider tg-time-slider";
-      timeSlider.title = "Scrub Sun & Moon Time of Day (0:00 \u2013 24:00)";
+      timeSlider.title = "\u0110i\u1EC1u ch\u1EC9nh th\u1EDDi gian trong ng\xE0y (0:00 \u2013 24:00)";
       timeSlider.setAttribute("aria-label", "Time of Day");
       timeSlider.addEventListener("input", () => {
         const hrs = parseFloat(timeSlider.value);
@@ -38293,7 +38293,7 @@ void main() {
       stopCanvasPropagation(subPopover);
       const dock = document.createElement("nav");
       dock.className = "tg-dock tg-interactive";
-      dock.setAttribute("aria-label", "Building & Landscape Tools");
+      dock.setAttribute("aria-label", "C\xF4ng c\u1EE5 x\xE2y d\u1EF1ng v\xE0 c\u1EA3nh quan");
       stopCanvasPropagation(dock);
       this._toolBtns = /* @__PURE__ */ new Map();
       for (const tool of TOOLS) {
@@ -38333,7 +38333,7 @@ void main() {
       captureBtn.type = "button";
       captureBtn.className = "tg-btn tg-btn-primary";
       captureBtn.dataset.action = "capture-png";
-      captureBtn.innerHTML = `<span class="tg-btn-icon">${ICONS.camera}</span><span>Capture PNG</span>`;
+      captureBtn.innerHTML = `<span class="tg-btn-icon">${ICONS.camera}</span><span>Ch\u1EE5p \u1EA3nh PNG</span>`;
       captureBtn.addEventListener("click", (e) => {
         this._blurOnPointer(e, captureBtn);
         this._tick();
@@ -38792,7 +38792,7 @@ void main() {
           const delBtn = document.createElement("button");
           delBtn.type = "button";
           delBtn.className = "tg-sub-delete-btn";
-          delBtn.title = "Demolish Selected (Del / Backspace)";
+          delBtn.title = "X\xF3a \u0111\u1ED1i t\u01B0\u1EE3ng \u0111\xE3 ch\u1ECDn (Del / Backspace)";
           delBtn.innerHTML = `${ICONS.trash}<span>Demolish</span>`;
           delBtn.addEventListener("click", (e) => {
             this._blurOnPointer(e, delBtn);
@@ -38982,7 +38982,7 @@ void main() {
       group.className = "tg-swatch-group";
       const lbl = document.createElement("span");
       lbl.className = "tg-sub-label";
-      lbl.textContent = "Roof";
+      lbl.textContent = "M\xE1i nh\xE0";
       group.appendChild(lbl);
       for (const sw of ROOF_SWATCHES) {
         const btn = document.createElement("button");
@@ -39007,7 +39007,7 @@ void main() {
       group.className = "tg-swatch-group";
       const lbl = document.createElement("span");
       lbl.className = "tg-sub-label";
-      lbl.textContent = "Stone";
+      lbl.textContent = "\u0110\xE1";
       group.appendChild(lbl);
       for (const st of WALL_STYLES) {
         const btn = document.createElement("button");
@@ -41641,19 +41641,20 @@ void main() {
     const canvas = document.getElementById("glade-canvas");
     const hudRoot = document.getElementById("hud-root");
     if (!canvas || !hudRoot) {
-      setLoadingError("Missing #glade-canvas or #hud-root container.");
+      setLoadingError("Thi\u1EBFu v\xF9ng hi\u1EC3n th\u1ECB 3D (#glade-canvas ho\u1EB7c #hud-root).");
       return;
     }
+    const initialQuality = window.matchMedia?.("(max-width: 760px) and (pointer: coarse)")?.matches ? "balanced" : "high";
     let pipeline;
     try {
       pipeline = createRendererPipeline(canvas, {
-        quality: "high",
+        quality: initialQuality,
         waterLevel: WATER_LEVEL,
         worldSize: WORLD_SIZE
       });
     } catch (err) {
       console.error("[tiny-glade] Failed to initialize WebGL2 pipeline:", err);
-      setLoadingError(`WebGL2 initialization failed: ${err?.message || err}`);
+      setLoadingError(`Kh\xF4ng th\u1EC3 kh\u1EDFi \u0111\u1ED9ng \u0111\u1ED3 h\u1ECDa WebGL2: ${err?.message || err}`);
       return;
     }
     const audio = new AudioEngine();
@@ -41667,7 +41668,7 @@ void main() {
         pipeline.water?.addRipple?.(x, z, strength);
       }
     });
-    world.setQuality?.("high");
+    world.setQuality?.(initialQuality);
     const arch = new ArchitectureManager({
       scene: pipeline.scene,
       materials: pipeline.materials,
@@ -41771,7 +41772,7 @@ void main() {
       const prev = history.undo(current);
       if (prev) {
         applySnapshot(prev);
-        hud?.showToast?.("Undid last action");
+        hud?.showToast?.("\u0110\xE3 ho\xE0n t\xE1c thao t\xE1c cu\u1ED1i");
       }
     };
     const handleRedo = () => {
@@ -41779,7 +41780,7 @@ void main() {
       const next = history.redo(current);
       if (next) {
         applySnapshot(next);
-        hud?.showToast?.("Redid action");
+        hud?.showToast?.("\u0110\xE3 th\u1EF1c hi\u1EC7n l\u1EA1i thao t\xE1c");
       }
     };
     const handleCaptureScreenshot = () => {
@@ -41787,7 +41788,7 @@ void main() {
       if (dataUrl) {
         const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
         downloadDataURL(dataUrl, `tiny-glade-${stamp}.png`);
-        hud?.showToast?.("Captured diorama screenshot");
+        hud?.showToast?.("\u0110\xE3 ch\u1EE5p \u1EA3nh c\u1EA3nh 3D");
       }
     };
     const hudCallbacks = {
@@ -41825,7 +41826,7 @@ void main() {
       onExport: () => {
         audio.unlock?.();
         history.exportJSON(captureSnapshot(), "tiny-glade-scene.json");
-        hud?.showToast?.("Exported scene JSON");
+        hud?.showToast?.("\u0110\xE3 xu\u1EA5t c\u1EA3nh th\xE0nh t\u1EC7p JSON");
       },
       onExportJSON: () => hudCallbacks.onExport(),
       onImport: async (file) => {
@@ -41836,11 +41837,11 @@ void main() {
           if (snap) {
             commitHistoryStep();
             applySnapshot(snap);
-            hud?.showToast?.("Imported glade scene");
+            hud?.showToast?.("\u0110\xE3 nh\u1EADp thi\u1EBFt k\u1EBF th\xE0nh c\xF4ng");
           }
         } catch (err) {
           console.error("[tiny-glade] Failed to import JSON:", err);
-          hud?.showToast?.("Could not read scene JSON file");
+          hud?.showToast?.("Kh\xF4ng th\u1EC3 \u0111\u1ECDc t\u1EC7p JSON thi\u1EBFt k\u1EBF");
         }
       },
       onImportJSON: (file) => hudCallbacks.onImport(file),
@@ -41867,7 +41868,7 @@ void main() {
         audio.playUiTick?.();
         pipeline.setQuality?.(tier);
         world.setQuality?.(tier);
-        hud?.showToast?.(`Graphics quality: ${tier}`);
+        hud?.showToast?.(`Ch\u1EA5t l\u01B0\u1EE3ng \u0111\u1ED3 h\u1ECDa: ${tier}`);
       },
       onWalkModeChange: (active) => {
         audio.unlock?.();
@@ -41877,7 +41878,7 @@ void main() {
         interaction?.setWalkMode?.(next);
         hud?.setWalkMode?.(next);
         if (next) {
-          hud?.showToast?.("Stroll Mode \u2014 WASD to walk, drag to look, Esc to exit");
+          hud?.showToast?.("Ch\u1EBF \u0111\u1ED9 \u0111i b\u1ED9 \u2014 WASD \u0111\u1EC3 \u0111i, k\xE9o \u0111\u1EC3 nh\xECn, Esc \u0111\u1EC3 tho\xE1t");
         }
       },
       onToggleWalkMode: (active) => hudCallbacks.onWalkModeChange(active),
@@ -41896,6 +41897,7 @@ void main() {
       onToggleMute: (muted) => hudCallbacks.onMuteChange(muted)
     };
     hud = new HUDController(hudRoot, hudCallbacks);
+    hud.setQuality?.(initialQuality);
     interaction = new InteractionController({
       scene: pipeline.scene,
       camera: pipeline.camera,
