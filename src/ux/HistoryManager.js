@@ -358,7 +358,7 @@ export class HistoryManager {
   /**
    * Downloads snapshot as a formatted JSON file in the browser.
    */
-  exportJSON(snapshot, filename = 'tiny-glade-scene.json') {
+  serializeJSON(snapshot) {
     if (!snapshot) return '';
     const payload = {
       format: 'tiny-glade-scene',
@@ -366,7 +366,13 @@ export class HistoryManager {
       exportedAt: new Date().toISOString(),
       scene: deepCloneSnapshot(snapshot),
     };
-    const json = JSON.stringify(payload, jsonReplacer, 2);
+    return JSON.stringify(payload, jsonReplacer, 2);
+  }
+
+  /** Downloads a scene file without coupling autosave to browser downloads. */
+  exportJSON(snapshot, filename = 'tiny-glade-scene.json') {
+    const json = this.serializeJSON(snapshot);
+    if (!json) return '';
 
     if (typeof document !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
       const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
