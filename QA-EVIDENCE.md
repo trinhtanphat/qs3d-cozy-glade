@@ -91,3 +91,20 @@ Result: **PASS, exit code 0**, `errors:[]`.
 **Release policy:** only merge if production commit exactly matches expected and clean. Keep WIN11-181 Session 2, unrelated tunnel services, and GitHub Actions untouched. Backup changed production files with SHA-256 verification and retain rollback commit.
 
 **Unverified, explicitly not certified:** sustained FPS on physical Android/iOS/Safari, actual low-power Intel hardware FPS *after* the new startup-detection change, full visual identity to any original video game, arbitrary gameplay endurance and all possible devices.
+
+## 13 Nov 2026 — Eco terrain topology LOD (isolated staging)
+
+- Renderer object audit showed the 256x256 terrain rasterized 130,050 triangles, water 51,200 and grass 45,000 in Eco; terrain was the highest-cost individual mesh.
+- Added a reversible 2-grid-step terrain index buffer for Eco: 32,768 triangles vs 130,050 in High/Ultra (74.8% fewer terrain faces). Retains all 65,536 editable heightfield vertices, normals, 256x256 terrain texture and original full-resolution index for instant reverse tier switching.
+- Unit test verifies index geometry, all indices in bounds, unchanged heights, repeated Eco/High/Ultra transitions and exact full topology restoration.
+- `npm test`: **85/85 PASS**; `npm run build`: PASS; `git diff --check`: PASS; `npm audit --omit=dev --audit-level=moderate`: found 0 vulnerabilities.
+- Isolated Chrome 390x844/WebGL2 staging rendered the island, bridge, roof, ocean and trees at Eco with ~531.8K scene triangles (previous Eco ~624.6K; draw calls still 125). No JS, page, console or network errors. Software-renderer FPS is not used for hardware performance claims.
+- Separate browser E2E: real export (~316 KB), modify clock 13:15->18:00, import and recover 13:15, reject malformed import safely; zero errors, PASS.
+- Remaining gate: hardware FPS of this *new* terrain LOD on actual Intel UHD 620, with exact branch code, is not yet verified.
+
+### Hardware follow-up: exact Eco terrain LOD QA build
+
+- Checked out exact QA commit `a59ae4e1f3465979d6ecd76884f667ceeafdff5b` into a separate clone on DESKTOP-PHA1S90; served on dedicated localhost port 5589 (without modifying production or unrelated browser profiles).
+- Real Chrome headless ANGLE renderer: `Intel(R) UHD Graphics 620 (0x00005917) Direct3D11`, explicitly **not** SwiftShader.
+- Viewport **390×844 (emulated mobile in desktop Chrome)**, device pixel ratio 1.0, Eco renderer pixel ratio 0.85. After the scene loaded: telemetry **31 FPS / 32.08 ms**; after steady observation **27 FPS / 37.13 ms**, 125 draw calls, 531,219 triangles, 3000 grass instances, no test errors, exit code 0.
+- This is a measured hardware run of the **new QA terrain-LOD branch**, not a guarantee of 30 FPS on all GPUs, physical mobile devices or sustained multi-hour play. FPS varies with GPU/CPU load. Previous public Eco measurements on this hardware ranged from roughly 15 to 22 FPS under different loads, so direct speedup percentages are not claimed.
