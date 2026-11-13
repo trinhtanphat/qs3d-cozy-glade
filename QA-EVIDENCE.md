@@ -43,3 +43,24 @@ The watchdog operates on two namespaced tasks: QS3D/CozyGlade-Watchdog and QS3D/
 - Playwright Chromium + SwiftShader, desktop 1280x800 on QA port 5487: WebGL2, default high quality, choose House tool, set time to 08:30, select empty meadow and return to QS3D island all PASS; zero page/console/network errors.
 - Prior public asset SHA-256 matched the then-current production checkout byte-for-byte for glade.js, glade.css, guide.js. Production URL healthz HTTP 200. Security probes returned 403 for /.git/config, /node_modules/three/package.json and /package.json.
 - Browser/device limits: iOS Safari, Android physical hardware, device-specific frame rate and long-session memory profiling have **not** been verified. No 100% cross-device performance claim is made.
+
+## Extended QA and hardening — 13 November 2026 (audit/complete-qa-20261113)
+
+### Validated scope
+- `npm run build`: PASS, standalone HTML self-contained and deterministic.
+- `npm test`: **69 tests PASS**, zero FAIL. Includes geometry presets; export/import typed arrays and scene round trips; undo/redo; rejection of invalid or oversized JSON, prototype-pollution keys, non-finite numbers and extreme nesting; 12 adaptive-quality cases; 20 HTTP route/security/ETag/cache checks.
+- `git diff --check`: PASS.
+- Isolated Chrome/SwiftShader staging: 390x844 WebGL2 scene load, full visible island and teal roof without clipped scene, manual Eco tier, ~316 KB original scene JSON round trip, rejected malformed import, no page/console/network errors. This is a functional and visual test, NOT a physical FPS test.
+- Isolated Chrome/SwiftShader staging: desktop 1280x800 WebGL2, select House, set 08:30, switch preset and restore island, no errors.
+- `/healthz`, `/play/`, JS/CSS URLs and security restrictions covered by separate local-server tests.
+
+### Physical GPU reference and evidence gap
+- On another connected Windows PC, Chrome ANGLE Direct3D11 explicitly reported Intel UHD Graphics 620 (hardware renderer). **Baseline production** before this hardening: approximately 6 FPS desktop 1280x800 High and 14 FPS 390x844 Balanced. This is insufficient for smooth play.
+- New tier `eco`: reduced grass (3000), optional shadows, shadow atlas, screen pixel density and post effects; automatically downgrades after sustained low FPS, but never overrides a user's manual setting.
+- This Intel UHD620 machine subsequently disconnected from Private Commander; **new Eco FPS on that actual GPU remains unverified** and should not be described as achieved.
+- Other physical GPU/Android/Safari tests and long-play stability remain outside current evidence.
+
+### Release policy
+- Worktree: `C:\QS3D-Glade-Island-QA`, isolated port 5487 until merge and production update.
+- Production worktree: `C:\QS3D-Glade-QA`. Keep dedicated Cloudflare tunnel and all unrelated production services/session 2 unchanged. Keep rollback commit and verified backup before release.
+- Origin now sends no-cache with ETag for HTML, JS and CSS to prevent users receiving mismatched old bundle files, plus additional security headers.

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 
 const MAX_RIPPLES = 16;
 
+export const OCEAN_SURFACE_SCALE = 4;
+
 const WATER_VERTEX_SHADER = /* glsl */ `
 uniform sampler2D uTerrainMap;
 uniform float uWorldSize;
@@ -299,7 +301,11 @@ export class WaterSystem {
     };
 
     const segments = opts.segments ?? 160;
-    const geometry = new THREE.PlaneGeometry(this.worldSize, this.worldSize, segments, segments);
+    // Keep island shore sampling tied to worldSize (120m), while extending
+    // its visual sea far past the editable terrain to hide square ocean edges.
+    // The same grid/triangle count is retained for predictable GPU cost.
+    const geometry = new THREE.PlaneGeometry(this.worldSize * OCEAN_SURFACE_SCALE,
+      this.worldSize * OCEAN_SURFACE_SCALE, segments, segments);
     geometry.rotateX(-Math.PI / 2);
 
     this.material = new THREE.ShaderMaterial({

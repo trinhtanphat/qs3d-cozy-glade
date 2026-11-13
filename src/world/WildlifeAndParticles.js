@@ -838,7 +838,7 @@ export class WildlifeAndParticles {
   setQuality(tier) {
     const q = String(tier || 'ultra').toLowerCase();
     this.quality = q;
-    const castSheep = q !== 'balanced';
+    const castSheep = q !== 'balanced' && q !== 'eco';
     for (const s of this.sheepList) {
       s.bodyMesh.castShadow = castSheep;
       s.legsMesh.castShadow = castSheep;
@@ -1022,7 +1022,7 @@ export class WildlifeAndParticles {
     // 1. Daytime meadow butterflies
     this.butterflyMesh.visible = dayScale > 0.02;
     if (this.butterflyMesh.visible) {
-      const activeCount = this.quality === 'balanced' ? Math.floor(BUTTERFLY_COUNT * 0.5) : BUTTERFLY_COUNT;
+      const activeCount = this.quality === 'eco' ? Math.floor(BUTTERFLY_COUNT * 0.2) : this.quality === 'balanced' ? Math.floor(BUTTERFLY_COUNT * 0.5) : BUTTERFLY_COUNT;
       this.butterflyMesh.count = activeCount;
       for (let i = 0; i < activeCount; i++) {
         const b = this._butterflies[i];

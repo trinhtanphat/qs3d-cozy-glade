@@ -23994,7 +23994,8 @@ void main() {
   var SHADOW_MAP_SIZES = {
     ultra: 4096,
     high: 2048,
-    balanced: 1024
+    balanced: 1024,
+    eco: 512
   };
   var AtmosphereSky = class {
     constructor(renderer, scene, opts = {}) {
@@ -24036,7 +24037,7 @@ void main() {
       this.scene.add(this.skyMesh);
       this.sunLight = new DirectionalLight(16768944, 2.8);
       this.sunLight.name = "SunLight";
-      this.sunLight.castShadow = true;
+      this.sunLight.castShadow = this._quality !== "eco";
       const shadowSize = SHADOW_MAP_SIZES[this._quality] || 2048;
       this.sunLight.shadow.mapSize.set(shadowSize, shadowSize);
       this.sunLight.shadow.camera.left = -this._shadowFrustumHalf;
@@ -24129,6 +24130,7 @@ void main() {
       const q = (quality || "high").toLowerCase();
       if (q === this._quality) return;
       this._quality = q;
+      this.sunLight.castShadow = q !== "eco";
       const size = SHADOW_MAP_SIZES[q] || 2048;
       if (this.sunLight.shadow.mapSize.x !== size) {
         this.sunLight.shadow.mapSize.set(size, size);
@@ -24330,6 +24332,7 @@ void main() {
 
   // src/engine/WaterSystem.js
   var MAX_RIPPLES = 16;
+  var OCEAN_SURFACE_SCALE = 4;
   var WATER_VERTEX_SHADER = (
     /* glsl */
     `
@@ -24626,7 +24629,12 @@ void main() {
         uRipples: { value: this._rippleUniformArray }
       };
       const segments = opts.segments ?? 160;
-      const geometry = new PlaneGeometry(this.worldSize, this.worldSize, segments, segments);
+      const geometry = new PlaneGeometry(
+        this.worldSize * OCEAN_SURFACE_SCALE,
+        this.worldSize * OCEAN_SURFACE_SCALE,
+        segments,
+        segments
+      );
       geometry.rotateX(-Math.PI / 2);
       this.material = new ShaderMaterial({
         vertexShader: WATER_VERTEX_SHADER,
@@ -25440,6 +25448,9 @@ void main() {
       if (this._quality === "ultra") {
         return { samples: 4, aoScale: 0.75, aoDirs: 4, aoSteps: 3 };
       }
+      if (this._quality === "eco") {
+        return { samples: 0, aoScale: 0.25, aoDirs: 1, aoSteps: 1 };
+      }
       if (this._quality === "balanced") {
         return { samples: 0, aoScale: 0.5, aoDirs: 3, aoSteps: 2 };
       }
@@ -25600,6 +25611,22 @@ void main() {
       if (this.sceneRT.samples > 0 && r.properties) {
         r.properties.get(this.sceneRT).__useRenderToTexture = false;
       }
+      if (this._quality === "eco") {
+        r.setRenderTarget(this.sceneRT);
+        r.clear(true, true, false);
+        r.render(scene, camera);
+        this.lastSceneCalls = r.info.render.calls;
+        this.lastSceneTriangles = r.info.render.triangles;
+        const f = this._finalMat.uniforms;
+        f.tPreDof.value = this.sceneRT.texture;
+        f.uResolution.value.set(this._width, this._height);
+        f.uDofEnabled.value = 0;
+        f.uNightFactor.value = envState.nightFactor;
+        f.uExposure.value = 1.02 + envState.nightFactor * 0.18;
+        this._runFullscreenPass(this._finalMat, null);
+        r.autoClear = prevAutoClear;
+        return;
+      }
       r.setRenderTarget(this.sceneRT);
       r.clear(true, true, false);
       r.render(scene, camera);
@@ -25729,7 +25756,8 @@ void main() {
   var QUALITY_DPR_CAP = {
     ultra: 2,
     high: 1.75,
-    balanced: 1.25
+    balanced: 1.25,
+    eco: 0.85
   };
   function clamp3(v, lo, hi) {
     return v < lo ? lo : v > hi ? hi : v;
@@ -26021,7 +26049,7 @@ void main() {
     }
     function setQuality(tier) {
       const q = (tier || "high").toLowerCase();
-      if (q !== "ultra" && q !== "high" && q !== "balanced") return;
+      if (!["ultra", "high", "balanced", "eco"].includes(q)) return;
       envState.quality = q;
       applyRendererSize(lastCssW, lastCssH, q);
       sky.setQuality(q);
@@ -26146,6 +26174,38 @@ void main() {
       dispose
     };
   }
+
+  // src/engine/AdaptiveQuality.js
+  var QUALITY_ORDER = Object.freeze(["eco", "balanced", "high", "ultra"]);
+  var AdaptiveQuality = class {
+    constructor({ minFps = 23, consecutive = 3, cooldownMs = 8e3, startTime = 0 } = {}) {
+      this.minFps = minFps;
+      this.consecutive = consecutive;
+      this.cooldownMs = cooldownMs;
+      this.lastChange = startTime;
+      this.lowWindows = 0;
+      this.isManual = false;
+    }
+    manualOverride() {
+      this.isManual = true;
+      this.lowWindows = 0;
+    }
+    observe({ fps, now, quality }) {
+      if (this.isManual || !Number.isFinite(fps) || !Number.isFinite(now)) return null;
+      if (fps >= this.minFps) {
+        this.lowWindows = 0;
+        return null;
+      }
+      if (now - this.lastChange < this.cooldownMs) return null;
+      if (++this.lowWindows < this.consecutive) return null;
+      this.lowWindows = 0;
+      const idx = QUALITY_ORDER.indexOf(quality);
+      if (idx <= 0) return null;
+      const next = QUALITY_ORDER[idx - 1];
+      this.lastChange = now;
+      return next;
+    }
+  };
 
   // src/arch/GeometryUtils.js
   var WALL_PALETTE_FALLBACK = {
@@ -33238,7 +33298,8 @@ void main() {
   var GRASS_COUNTS = {
     ultra: 65e3,
     high: 35e3,
-    balanced: 16e3
+    balanced: 16e3,
+    eco: 3e3
   };
   var MAX_GRASS = GRASS_COUNTS.ultra;
   var GRASS_GRID_DIM = 32;
@@ -34522,7 +34583,7 @@ void main() {
       this.boulderMesh.instanceMatrix.needsUpdate = true;
     }
     _syncFlowerInstances() {
-      const qualityMul = this.quality === "balanced" ? 0.55 : this.quality === "high" ? 0.82 : 1;
+      const qualityMul = this.quality === "eco" ? 0.18 : this.quality === "balanced" ? 0.55 : this.quality === "high" ? 0.82 : 1;
       const limit = Math.min(Math.floor(this.flowers.length * qualityMul), MAX_FLOWERS);
       const dummy = this._dummy;
       for (let i = 0; i < limit; i++) {
@@ -34599,8 +34660,8 @@ void main() {
       const q = String(tier || "ultra").toLowerCase();
       this.quality = GRASS_COUNTS[q] ? q : "ultra";
       this.grassMesh.count = GRASS_COUNTS[this.quality];
-      this.bushMesh.castShadow = this.quality !== "balanced";
-      this.reedMesh.castShadow = this.quality !== "balanced";
+      this.bushMesh.castShadow = this.quality !== "balanced" && this.quality !== "eco";
+      this.reedMesh.castShadow = this.quality !== "balanced" && this.quality !== "eco";
       this._syncFlowerInstances();
     }
     update(dt, elapsed, envState = {}) {
@@ -35441,7 +35502,7 @@ void main() {
     setQuality(tier) {
       const q = String(tier || "ultra").toLowerCase();
       this.quality = q;
-      const castSheep = q !== "balanced";
+      const castSheep = q !== "balanced" && q !== "eco";
       for (const s of this.sheepList) {
         s.bodyMesh.castShadow = castSheep;
         s.legsMesh.castShadow = castSheep;
@@ -35597,7 +35658,7 @@ void main() {
       const dummy = this._dummy;
       this.butterflyMesh.visible = dayScale > 0.02;
       if (this.butterflyMesh.visible) {
-        const activeCount = this.quality === "balanced" ? Math.floor(BUTTERFLY_COUNT * 0.5) : BUTTERFLY_COUNT;
+        const activeCount = this.quality === "eco" ? Math.floor(BUTTERFLY_COUNT * 0.2) : this.quality === "balanced" ? Math.floor(BUTTERFLY_COUNT * 0.5) : BUTTERFLY_COUNT;
         this.butterflyMesh.count = activeCount;
         for (let i = 0; i < activeCount; i++) {
           const b = this._butterflies[i];
@@ -35926,7 +35987,7 @@ void main() {
     }
     setQuality(tier) {
       const q = String(tier || "ultra").toLowerCase();
-      this.quality = q === "balanced" || q === "high" ? q : "ultra";
+      this.quality = ["eco", "balanced", "high", "ultra"].includes(q) ? q : "ultra";
       this.foliage.setQuality(this.quality);
       this.wildlife.setQuality(this.quality);
     }
@@ -36705,6 +36766,64 @@ void main() {
     Int32Array,
     Uint32Array
   };
+  var MAX_SCENE_IMPORT_BYTES = 16 * 1024 * 1024;
+  var MAX_SCENE_IMPORT_DEPTH = 48;
+  var MAX_SCENE_IMPORT_NODES = 3e5;
+  var DANGEROUS_JSON_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototype"]);
+  function isRecord(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value) && !ArrayBuffer.isView(value);
+  }
+  function validateSceneSnapshot(snapshot) {
+    if (!isRecord(snapshot) || !isRecord(snapshot.world) || !isRecord(snapshot.arch)) {
+      throw new Error("Scene must contain world and arch objects.");
+    }
+    if (snapshot.env !== void 0 && !isRecord(snapshot.env)) {
+      throw new Error("Scene environment must be an object.");
+    }
+    for (const key of ["terrain", "foliage"]) {
+      if (snapshot.world[key] !== void 0 && !isRecord(snapshot.world[key])) {
+        throw new Error("Scene world." + key + " must be an object.");
+      }
+    }
+    for (const key of ["buildings", "walls", "paths", "clutter"]) {
+      if (snapshot.arch[key] !== void 0 && !Array.isArray(snapshot.arch[key])) {
+        throw new Error("Scene arch." + key + " must be an array.");
+      }
+    }
+    const stack = [{ value: snapshot, depth: 0 }];
+    let visited = 0;
+    while (stack.length) {
+      const { value, depth } = stack.pop();
+      if (++visited > MAX_SCENE_IMPORT_NODES || depth > MAX_SCENE_IMPORT_DEPTH) {
+        throw new Error("Scene exceeds complexity or nesting limits.");
+      }
+      if (typeof value === "number" && !Number.isFinite(value)) {
+        throw new Error("Scene contains a non-finite number.");
+      }
+      if (typeof value === "string" && value.length > 2e6) {
+        throw new Error("Scene contains an excessively long string.");
+      }
+      if (value === null || typeof value !== "object") continue;
+      if (ArrayBuffer.isView(value)) {
+        if (value.length > 262144) throw new Error("Scene typed array is too large.");
+        for (let i = 0; i < value.length; i++) {
+          if (!Number.isFinite(value[i])) throw new Error("Scene typed array contains invalid numbers.");
+        }
+        continue;
+      }
+      if (Array.isArray(value)) {
+        if (value.length > 1e5) throw new Error("Scene array is too large.");
+        for (const item of value) stack.push({ value: item, depth: depth + 1 });
+        continue;
+      }
+      if (!isRecord(value)) throw new Error("Scene has an unsupported object type.");
+      for (const key of Object.keys(value)) {
+        if (DANGEROUS_JSON_KEYS.has(key)) throw new Error("Scene contains a forbidden key.");
+        stack.push({ value: value[key], depth: depth + 1 });
+      }
+    }
+    return snapshot;
+  }
   function deepCloneSnapshot(value) {
     if (value === null || typeof value !== "object") return value;
     if (typeof structuredClone === "function") {
@@ -36928,6 +37047,9 @@ void main() {
       if (!file) {
         throw new Error("No scene file provided.");
       }
+      if (typeof file?.size === "number" && file.size > MAX_SCENE_IMPORT_BYTES) {
+        throw new Error("Scene file exceeds 16 MB safety limit.");
+      }
       let rawText = "";
       if (typeof file === "string") {
         rawText = file;
@@ -36943,16 +37065,27 @@ void main() {
       } else {
         throw new Error("Unsupported file input for importJSON.");
       }
+      if (new TextEncoder().encode(rawText).byteLength > MAX_SCENE_IMPORT_BYTES) {
+        throw new Error("Scene file exceeds 16 MB safety limit.");
+      }
       let parsed;
       try {
-        parsed = JSON.parse(rawText, jsonReviver);
+        parsed = JSON.parse(rawText, (key, value) => {
+          if (DANGEROUS_JSON_KEYS.has(key)) throw new Error("Forbidden JSON key");
+          return jsonReviver(key, value);
+        });
       } catch {
         throw new Error("Invalid JSON in scene file.");
       }
-      if (!parsed || typeof parsed !== "object") {
-        throw new Error("Scene JSON root must be an object.");
+      if (!isRecord(parsed)) throw new Error("Scene JSON root must be an object.");
+      if (parsed.format !== void 0 && parsed.format !== "tiny-glade-scene") {
+        throw new Error("Unsupported scene format.");
       }
-      const snapshot = parsed.format === "tiny-glade-scene" && parsed.scene && typeof parsed.scene === "object" ? parsed.scene : parsed;
+      if (parsed.format === "tiny-glade-scene" && parsed.version !== 1) {
+        throw new Error("Unsupported scene version.");
+      }
+      const snapshot = parsed.format === "tiny-glade-scene" ? parsed.scene : parsed;
+      validateSceneSnapshot(snapshot);
       return deepCloneSnapshot(snapshot);
     }
   };
@@ -38549,7 +38682,8 @@ void main() {
       for (const q of [
         { id: "ultra", label: "Si\xEAu cao" },
         { id: "high", label: "Cao" },
-        { id: "balanced", label: "C\xE2n b\u1EB1ng" }
+        { id: "balanced", label: "C\xE2n b\u1EB1ng" },
+        { id: "eco", label: "Ti\u1EBFt ki\u1EC7m" }
       ]) {
         const b = document.createElement("button");
         b.type = "button";
@@ -39378,10 +39512,10 @@ void main() {
       this.distance = 38.5;
       this.desiredDistance = 38.5;
       this.minDistance = 4.2;
-      this.maxDistance = 90;
+      this.maxDistance = 160;
       this.minPitch = 0.08;
       this.maxPitch = 1.4;
-      this.orbitFov = 45;
+      this.orbitFov = typeof window !== "undefined" && window.innerWidth / Math.max(1, window.innerHeight) < 0.8 ? 64 : 45;
       this.walkFov = 60;
       this.walkMode = false;
       this.walkBlend = 0;
@@ -39718,7 +39852,8 @@ void main() {
           target: pose.target,
           yaw: pose.yaw,
           pitch: pose.pitch,
-          distance: pose.distance
+          // Portrait screens need a wider, farther orbit to keep the whole island in view.
+          distance: pose.distance * (typeof window !== "undefined" ? Math.min(2, Math.max(1, 0.94 / Math.max(0.4, window.innerWidth / Math.max(1, window.innerHeight)))) : 1)
         },
         immediate
       );
@@ -41791,6 +41926,7 @@ void main() {
         hud?.showToast?.("\u0110\xE3 ch\u1EE5p \u1EA3nh c\u1EA3nh 3D");
       }
     };
+    const adaptiveQuality = new AdaptiveQuality({ startTime: performance.now() });
     const hudCallbacks = {
       presets: PRESET_SCENES,
       onUiSound: () => {
@@ -41865,6 +42001,7 @@ void main() {
         pipeline.setDoF?.(dofPatch);
       },
       onQualityChange: (tier) => {
+        adaptiveQuality.manualOverride();
         audio.playUiTick?.();
         pipeline.setQuality?.(tier);
         world.setQuality?.(tier);
@@ -41935,7 +42072,8 @@ void main() {
       history,
       loadPreset,
       captureSnapshot,
-      applySnapshot
+      applySnapshot,
+      adaptiveQuality
     };
     let prevTime = performance.now();
     let elapsed = 0;
@@ -41965,6 +42103,13 @@ void main() {
         const fps = Math.round(statsFrames / statsAccumTime);
         const frameMs = Number((statsAccumTime / statsFrames * 1e3).toFixed(1));
         const rendererStats = pipeline.getStats?.() || {};
+        const next = adaptiveQuality.observe({ fps, now, quality: pipeline.envState?.quality });
+        if (next) {
+          pipeline.setQuality?.(next);
+          world.setQuality?.(next);
+          hud.setQuality?.(next);
+          hud.showToast?.("M\xE1y \u0111ang ch\u1EADm: t\u1EF1 gi\u1EA3m ch\u1EA5t l\u01B0\u1EE3ng \u0111\u1ED3 h\u1ECDa. B\u1EA1n c\xF3 th\u1EC3 \u0111\u1ED5i l\u1EA1i trong Kh\xF4ng kh\xED.", 4200);
+        }
         hud.updateStats?.({
           fps,
           frameMs,
