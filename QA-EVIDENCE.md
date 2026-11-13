@@ -101,3 +101,10 @@ Result: **PASS, exit code 0**, `errors:[]`.
 - Isolated Chrome 390x844/WebGL2 staging rendered the island, bridge, roof, ocean and trees at Eco with ~531.8K scene triangles (previous Eco ~624.6K; draw calls still 125). No JS, page, console or network errors. Software-renderer FPS is not used for hardware performance claims.
 - Separate browser E2E: real export (~316 KB), modify clock 13:15->18:00, import and recover 13:15, reject malformed import safely; zero errors, PASS.
 - Remaining gate: hardware FPS of this *new* terrain LOD on actual Intel UHD 620, with exact branch code, is not yet verified.
+
+### Hardware follow-up: exact Eco terrain LOD QA build
+
+- Checked out exact QA commit `a59ae4e1f3465979d6ecd76884f667ceeafdff5b` into a separate clone on DESKTOP-PHA1S90; served on dedicated localhost port 5589 (without modifying production or unrelated browser profiles).
+- Real Chrome headless ANGLE renderer: `Intel(R) UHD Graphics 620 (0x00005917) Direct3D11`, explicitly **not** SwiftShader.
+- Viewport **390×844 (emulated mobile in desktop Chrome)**, device pixel ratio 1.0, Eco renderer pixel ratio 0.85. After the scene loaded: telemetry **31 FPS / 32.08 ms**; after steady observation **27 FPS / 37.13 ms**, 125 draw calls, 531,219 triangles, 3000 grass instances, no test errors, exit code 0.
+- This is a measured hardware run of the **new QA terrain-LOD branch**, not a guarantee of 30 FPS on all GPUs, physical mobile devices or sustained multi-hour play. FPS varies with GPU/CPU load. Previous public Eco measurements on this hardware ranged from roughly 15 to 22 FPS under different loads, so direct speedup percentages are not claimed.
