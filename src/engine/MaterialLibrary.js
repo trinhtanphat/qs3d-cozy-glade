@@ -4,6 +4,7 @@ const ROOF_PALETTES = {
   terracotta: '#b8573b',
   slate: '#47586c',
   moss: '#556e48',
+  teal: '#208d86',
   ochre: '#c48d3f',
   plum: '#6d4b5b',
 };

@@ -81,9 +81,16 @@ async function build() {
   }
 
   // Function replacers ensure $& / $$ / $' in minified JS/CSS are never mangled
+  const guideCss = await readFile(path.join(__dirname, 'qs3d-guide.css'), 'utf8');
+  const guideJs = await readFile(path.join(__dirname, 'qs3d-guide.js'), 'utf8');
   const standaloneHtml = indexTemplate
     .replace(linkRegex, () => `<style>${minifiedCss}</style>`)
-    .replace(scriptRegex, () => `<script>${minifiedJs}</script>`);
+    .replace(scriptRegex, () => `<script>${minifiedJs}</script>`)
+    .replace('<link rel="stylesheet" href="./qs3d-guide.css" />', () => '<style>' + guideCss + '</style>')
+    .replace('<script defer src="./qs3d-guide.js"></script>', () => '<script>' + guideJs + '</script>');
+  if (standaloneHtml.includes('./qs3d-guide.css') || standaloneHtml.includes('./qs3d-guide.js')) {
+    throw new Error('Standalone HTML still references external guide assets');
+  }
 
   if (standaloneHtml.includes('./dist/glade.js') || standaloneHtml.includes('./dist/glade.css')) {
     throw new Error('Standalone HTML still contains external ./dist/ references');

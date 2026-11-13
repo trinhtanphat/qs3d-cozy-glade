@@ -10,5 +10,5 @@
   guide.querySelector('#qs3d-guide-close').addEventListener('click',e=>{e.stopPropagation();setOpen(false);});
   for(const eventName of ['pointerdown','mousedown','mouseup','wheel','touchstart','touchend'])guide.addEventListener(eventName,e=>e.stopPropagation(),{passive:eventName==='wheel'||eventName.startsWith('touch')});
   document.body.append(toggle,guide);
-  if(!sessionStorage.getItem('qs3dGuideSeen')){setOpen(true);sessionStorage.setItem('qs3dGuideSeen','1');}
+  // Help is opt-in: keep the island visible when the player starts.
 })();
