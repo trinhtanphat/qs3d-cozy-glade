@@ -1,0 +1,6 @@
+# Preserve generated artifacts byte-for-byte on Windows and Linux.
+# The files are produced with LF by npm run build; disable checkout CRLF conversion.
+/dist/glade.js -text
+/dist/glade.css -text
+/dist/tiny-glade-aaa.html -text
+/tiny-glade-aaa.html -text
