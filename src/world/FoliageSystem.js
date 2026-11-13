@@ -4,7 +4,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 const GRASS_COUNTS = {
   ultra: 65000,
   high: 35000,
-  balanced: 16000
+  balanced: 16000,
+  eco: 3000
 };
 const MAX_GRASS = GRASS_COUNTS.ultra;
 const GRASS_GRID_DIM = 32;
@@ -1499,7 +1500,7 @@ export class FoliageSystem {
   }
 
   _syncFlowerInstances() {
-    const qualityMul = this.quality === 'balanced' ? 0.55 : this.quality === 'high' ? 0.82 : 1.0;
+    const qualityMul = this.quality === 'eco' ? 0.18 : this.quality === 'balanced' ? 0.55 : this.quality === 'high' ? 0.82 : 1.0;
     const limit = Math.min(Math.floor(this.flowers.length * qualityMul), MAX_FLOWERS);
     const dummy = this._dummy;
 
@@ -1604,8 +1605,8 @@ export class FoliageSystem {
     const q = String(tier || 'ultra').toLowerCase();
     this.quality = GRASS_COUNTS[q] ? q : 'ultra';
     this.grassMesh.count = GRASS_COUNTS[this.quality];
-    this.bushMesh.castShadow = this.quality !== 'balanced';
-    this.reedMesh.castShadow = this.quality !== 'balanced';
+    this.bushMesh.castShadow = this.quality !== 'balanced' && this.quality !== 'eco';
+    this.reedMesh.castShadow = this.quality !== 'balanced' && this.quality !== 'eco';
     this._syncFlowerInstances();
   }
 

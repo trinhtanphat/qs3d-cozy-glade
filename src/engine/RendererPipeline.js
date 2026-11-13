@@ -10,6 +10,7 @@ const QUALITY_DPR_CAP = {
   ultra: 2.0,
   high: 1.75,
   balanced: 1.25,
+  eco: 0.85,
 };
 
 function clamp(v, lo, hi) {
@@ -358,7 +359,7 @@ export function createRendererPipeline(canvasOrOpts, opts = {}) {
 
   function setQuality(tier) {
     const q = (tier || 'high').toLowerCase();
-    if (q !== 'ultra' && q !== 'high' && q !== 'balanced') return;
+    if (!['ultra', 'high', 'balanced', 'eco'].includes(q)) return;
     envState.quality = q;
     applyRendererSize(lastCssW, lastCssH, q);
     sky.setQuality(q);

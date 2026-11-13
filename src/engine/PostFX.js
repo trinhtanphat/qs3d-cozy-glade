@@ -726,6 +726,9 @@ export class PostFX {
     if (this._quality === 'ultra') {
       return { samples: 4, aoScale: 0.75, aoDirs: 4, aoSteps: 3 };
     }
+    if (this._quality === 'eco') {
+      return { samples: 0, aoScale: 0.25, aoDirs: 1, aoSteps: 1 };
+    }
     if (this._quality === 'balanced') {
       return { samples: 0, aoScale: 0.5, aoDirs: 3, aoSteps: 2 };
     }
@@ -905,6 +908,25 @@ export class PostFX {
     // Ensure ANGLE __useRenderToTexture stays disabled on MSAA + DepthTexture target
     if (this.sceneRT.samples > 0 && r.properties) {
       r.properties.get(this.sceneRT).__useRenderToTexture = false;
+    }
+
+    // Eco path skips GTAO, sun shafts, bloom and depth-of-field. Preserve
+    // tone mapping via one inexpensive final pass, not a raw overbright scene.
+    if (this._quality === 'eco') {
+      r.setRenderTarget(this.sceneRT);
+      r.clear(true, true, false);
+      r.render(scene, camera);
+      this.lastSceneCalls = r.info.render.calls;
+      this.lastSceneTriangles = r.info.render.triangles;
+      const f = this._finalMat.uniforms;
+      f.tPreDof.value = this.sceneRT.texture;
+      f.uResolution.value.set(this._width, this._height);
+      f.uDofEnabled.value = 0.0;
+      f.uNightFactor.value = envState.nightFactor;
+      f.uExposure.value = 1.02 + envState.nightFactor * 0.18;
+      this._runFullscreenPass(this._finalMat, null);
+      r.autoClear = prevAutoClear;
+      return;
     }
 
     // --- PASS 1: Main HDR Scene Render (4x MSAA + 32F DepthTexture resolved cleanly) ---

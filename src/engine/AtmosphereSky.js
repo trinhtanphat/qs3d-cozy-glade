@@ -259,6 +259,7 @@ const SHADOW_MAP_SIZES = {
   ultra: 4096,
   high: 2048,
   balanced: 1024,
+  eco: 512,
 };
 
 export class AtmosphereSky {
@@ -308,7 +309,7 @@ export class AtmosphereSky {
     // Directional Sun Light (Primary stabilized shadow caster)
     this.sunLight = new THREE.DirectionalLight(0xffdfb0, 2.8);
     this.sunLight.name = 'SunLight';
-    this.sunLight.castShadow = true;
+    this.sunLight.castShadow = this._quality !== 'eco';
     const shadowSize = SHADOW_MAP_SIZES[this._quality] || 2048;
     this.sunLight.shadow.mapSize.set(shadowSize, shadowSize);
     this.sunLight.shadow.camera.left = -this._shadowFrustumHalf;
@@ -416,6 +417,7 @@ export class AtmosphereSky {
     const q = (quality || 'high').toLowerCase();
     if (q === this._quality) return;
     this._quality = q;
+    this.sunLight.castShadow = q !== 'eco';
     const size = SHADOW_MAP_SIZES[q] || 2048;
     if (this.sunLight.shadow.mapSize.x !== size) {
       this.sunLight.shadow.mapSize.set(size, size);

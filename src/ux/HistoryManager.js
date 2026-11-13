@@ -16,6 +16,72 @@ const TYPED_ARRAY_CTORS = {
   Uint32Array,
 };
 
+
+const MAX_SCENE_IMPORT_BYTES = 16 * 1024 * 1024;
+const MAX_SCENE_IMPORT_DEPTH = 48;
+const MAX_SCENE_IMPORT_NODES = 300000;
+const DANGEROUS_JSON_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' &&
+    !Array.isArray(value) && !ArrayBuffer.isView(value);
+}
+
+function validateSceneSnapshot(snapshot) {
+  if (!isRecord(snapshot) || !isRecord(snapshot.world) || !isRecord(snapshot.arch)) {
+    throw new Error('Scene must contain world and arch objects.');
+  }
+  if (snapshot.env !== undefined && !isRecord(snapshot.env)) {
+    throw new Error('Scene environment must be an object.');
+  }
+  for (const key of ['terrain', 'foliage']) {
+    if (snapshot.world[key] !== undefined && !isRecord(snapshot.world[key])) {
+      throw new Error('Scene world.' + key + ' must be an object.');
+    }
+  }
+  for (const key of ['buildings', 'walls', 'paths', 'clutter']) {
+    if (snapshot.arch[key] !== undefined && !Array.isArray(snapshot.arch[key])) {
+      throw new Error('Scene arch.' + key + ' must be an array.');
+    }
+  }
+
+  // A bounded, iterative scan prevents deep recursion, huge scene trees,
+  // prototype pollution keys and NaN/Infinity from reaching WebGL geometry.
+  const stack = [{ value: snapshot, depth: 0 }];
+  let visited = 0;
+  while (stack.length) {
+    const { value, depth } = stack.pop();
+    if (++visited > MAX_SCENE_IMPORT_NODES || depth > MAX_SCENE_IMPORT_DEPTH) {
+      throw new Error('Scene exceeds complexity or nesting limits.');
+    }
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new Error('Scene contains a non-finite number.');
+    }
+    if (typeof value === 'string' && value.length > 2_000_000) {
+      throw new Error('Scene contains an excessively long string.');
+    }
+    if (value === null || typeof value !== 'object') continue;
+    if (ArrayBuffer.isView(value)) {
+      if (value.length > 262144) throw new Error('Scene typed array is too large.');
+      for (let i = 0; i < value.length; i++) {
+        if (!Number.isFinite(value[i])) throw new Error('Scene typed array contains invalid numbers.');
+      }
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (value.length > 100000) throw new Error('Scene array is too large.');
+      for (const item of value) stack.push({ value: item, depth: depth + 1 });
+      continue;
+    }
+    if (!isRecord(value)) throw new Error('Scene has an unsupported object type.');
+    for (const key of Object.keys(value)) {
+      if (DANGEROUS_JSON_KEYS.has(key)) throw new Error('Scene contains a forbidden key.');
+      stack.push({ value: value[key], depth: depth + 1 });
+    }
+  }
+  return snapshot;
+}
+
 function deepCloneSnapshot(value) {
   if (value === null || typeof value !== 'object') return value;
 
@@ -283,6 +349,9 @@ export class HistoryManager {
       throw new Error('No scene file provided.');
     }
 
+    if (typeof file?.size === 'number' && file.size > MAX_SCENE_IMPORT_BYTES) {
+      throw new Error('Scene file exceeds 16 MB safety limit.');
+    }
     let rawText = '';
     if (typeof file === 'string') {
       rawText = file;
@@ -299,23 +368,30 @@ export class HistoryManager {
       throw new Error('Unsupported file input for importJSON.');
     }
 
+    if (new TextEncoder().encode(rawText).byteLength > MAX_SCENE_IMPORT_BYTES) {
+      throw new Error('Scene file exceeds 16 MB safety limit.');
+    }
     let parsed;
     try {
-      parsed = JSON.parse(rawText, jsonReviver);
+      parsed = JSON.parse(rawText, (key, value) => {
+        if (DANGEROUS_JSON_KEYS.has(key)) throw new Error('Forbidden JSON key');
+        return jsonReviver(key, value);
+      });
     } catch {
       throw new Error('Invalid JSON in scene file.');
     }
 
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('Scene JSON root must be an object.');
+    if (!isRecord(parsed)) throw new Error('Scene JSON root must be an object.');
+    if (parsed.format !== undefined && parsed.format !== 'tiny-glade-scene') {
+      throw new Error('Unsupported scene format.');
+    }
+    if (parsed.format === 'tiny-glade-scene' && parsed.version !== 1) {
+      throw new Error('Unsupported scene version.');
     }
 
-    // Unwrap { format: 'tiny-glade-scene', scene: {...} } or accept direct snapshot objects
-    const snapshot =
-      parsed.format === 'tiny-glade-scene' && parsed.scene && typeof parsed.scene === 'object'
-        ? parsed.scene
-        : parsed;
-
+    // Accept both the versioned export envelope and a direct world/arch snapshot.
+    const snapshot = parsed.format === 'tiny-glade-scene' ? parsed.scene : parsed;
+    validateSceneSnapshot(snapshot);
     return deepCloneSnapshot(snapshot);
   }
 }

@@ -55,10 +55,10 @@ export class CameraController {
     this.desiredDistance = 38.5;
 
     this.minDistance = 4.2;
-    this.maxDistance = 90.0;
+    this.maxDistance = 160.0;
     this.minPitch = 0.08;
     this.maxPitch = 1.40;
-    this.orbitFov = 45;
+    this.orbitFov = (typeof window !== 'undefined' && window.innerWidth / Math.max(1, window.innerHeight) < 0.8) ? 64 : 45;
     this.walkFov = 60;
 
     // Walk / First-Person Stroll state
@@ -469,7 +469,10 @@ export class CameraController {
         target: pose.target,
         yaw: pose.yaw,
         pitch: pose.pitch,
-        distance: pose.distance,
+        // Portrait screens need a wider, farther orbit to keep the whole island in view.
+        distance: pose.distance * (typeof window !== 'undefined'
+          ? Math.min(2.0, Math.max(1.0, 0.94 / Math.max(0.4, window.innerWidth / Math.max(1, window.innerHeight))))
+          : 1),
       },
       immediate
     );

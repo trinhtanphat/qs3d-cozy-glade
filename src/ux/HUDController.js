@@ -825,6 +825,7 @@ export class HUDController {
       { id: 'ultra', label: 'Siêu cao' },
       { id: 'high', label: 'Cao' },
       { id: 'balanced', label: 'Cân bằng' },
+      { id: 'eco', label: 'Tiết kiệm' },
     ]) {
       const b = document.createElement('button');
       b.type = 'button';

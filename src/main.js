@@ -1,4 +1,5 @@
 import { createRendererPipeline } from './engine/RendererPipeline.js';
+import { AdaptiveQuality } from './engine/AdaptiveQuality.js';
 import { ArchitectureManager } from './arch/ArchitectureManager.js';
 import { WorldManager } from './world/WorldManager.js';
 import { AudioEngine } from './ux/AudioEngine.js';
@@ -211,6 +212,7 @@ async function bootstrap() {
     }
   };
 
+  const adaptiveQuality = new AdaptiveQuality({ startTime: performance.now() });
   const hudCallbacks = {
     presets: PRESET_SCENES,
 
@@ -298,6 +300,7 @@ async function bootstrap() {
     },
 
     onQualityChange: (tier) => {
+      adaptiveQuality.manualOverride();
       audio.playUiTick?.();
       pipeline.setQuality?.(tier);
       world.setQuality?.(tier);
@@ -383,6 +386,7 @@ async function bootstrap() {
     loadPreset,
     captureSnapshot,
     applySnapshot,
+    adaptiveQuality,
   };
 
   // Main animation loop
@@ -419,6 +423,14 @@ async function bootstrap() {
       const fps = Math.round(statsFrames / statsAccumTime);
       const frameMs = Number(((statsAccumTime / statsFrames) * 1000).toFixed(1));
       const rendererStats = pipeline.getStats?.() || {};
+      // Adaptive but one-way: slow GPUs downgrade; the player's setting wins.
+      const next = adaptiveQuality.observe({fps, now, quality: pipeline.envState?.quality});
+      if (next) {
+        pipeline.setQuality?.(next);
+        world.setQuality?.(next);
+        hud.setQuality?.(next);
+        hud.showToast?.('Máy đang chậm: tự giảm chất lượng đồ họa. Bạn có thể đổi lại trong Không khí.', 4200);
+      }
       hud.updateStats?.({
         fps,
         frameMs,
