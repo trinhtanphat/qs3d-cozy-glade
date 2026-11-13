@@ -37096,7 +37096,7 @@ void main() {
     /**
      * Downloads snapshot as a formatted JSON file in the browser.
      */
-    exportJSON(snapshot, filename = "tiny-glade-scene.json") {
+    serializeJSON(snapshot) {
       if (!snapshot) return "";
       const payload = {
         format: "tiny-glade-scene",
@@ -37104,7 +37104,12 @@ void main() {
         exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
         scene: deepCloneSnapshot(snapshot)
       };
-      const json = JSON.stringify(payload, jsonReplacer, 2);
+      return JSON.stringify(payload, jsonReplacer, 2);
+    }
+    /** Downloads a scene file without coupling autosave to browser downloads. */
+    exportJSON(snapshot, filename = "tiny-glade-scene.json") {
+      const json = this.serializeJSON(snapshot);
+      if (!json) return "";
       if (typeof document !== "undefined" && typeof Blob !== "undefined" && typeof URL !== "undefined") {
         const blob = new Blob([json], { type: "application/json;charset=utf-8" });
         const url = URL.createObjectURL(blob);
@@ -37166,6 +37171,105 @@ void main() {
       const snapshot = parsed.format === "tiny-glade-scene" ? parsed.scene : parsed;
       validateSceneSnapshot(snapshot);
       return deepCloneSnapshot(snapshot);
+    }
+  };
+
+  // src/ux/SceneAutosave.js
+  var SCENE_AUTOSAVE_KEY = "qs3d-cozy-glade:scene-autosave-v1";
+  var AUTOSAVE_FORMAT = "qs3d-cozy-glade:autosave";
+  var MAX_AUTOSAVE_LENGTH = 16 * 1024 * 1024;
+  var SceneAutosave = class {
+    constructor({
+      storage = null,
+      history,
+      key = SCENE_AUTOSAVE_KEY,
+      delayMs = 1800,
+      setTimer = (fn, ms) => setTimeout(fn, ms),
+      clearTimer = (id) => clearTimeout(id)
+    } = {}) {
+      this.storage = storage;
+      this.history = history;
+      this.key = key;
+      this.delayMs = delayMs;
+      this.setTimer = setTimer;
+      this.clearTimer = clearTimer;
+      this.pending = null;
+      this.timer = null;
+      this.lastError = null;
+      this.lastSavedAt = null;
+    }
+    read() {
+      if (!this.storage) return null;
+      try {
+        const raw = this.storage.getItem(this.key);
+        if (!raw) return null;
+        if (raw.length > MAX_AUTOSAVE_LENGTH) throw new Error("Autosave too large");
+        const record = JSON.parse(raw);
+        if (record?.format !== AUTOSAVE_FORMAT || record.version !== 1 || typeof record.sceneJSON !== "string" || !Number.isFinite(record.savedAt) || record.sceneJSON.length > MAX_AUTOSAVE_LENGTH) {
+          throw new Error("Autosave version or data invalid");
+        }
+        this.lastError = null;
+        return {
+          sceneJSON: record.sceneJSON,
+          presetId: record.presetId,
+          savedAt: record.savedAt
+        };
+      } catch (error) {
+        this.lastError = error;
+        return null;
+      }
+    }
+    schedule(capture, presetId = "qs3d-island") {
+      if (!this.storage || typeof capture !== "function") return false;
+      this.pending = { capture, presetId };
+      if (this.timer !== null) this.clearTimer(this.timer);
+      this.timer = this.setTimer(() => this.flush(), this.delayMs);
+      return true;
+    }
+    flush() {
+      if (this.timer !== null) {
+        this.clearTimer(this.timer);
+        this.timer = null;
+      }
+      if (!this.pending || !this.storage) return false;
+      const { capture, presetId } = this.pending;
+      this.pending = null;
+      try {
+        const sceneJSON = this.history.serializeJSON(capture());
+        if (!sceneJSON || sceneJSON.length > MAX_AUTOSAVE_LENGTH) {
+          throw new Error("Scene exceeds autosave size limit");
+        }
+        const savedAt = Date.now();
+        const record = {
+          format: AUTOSAVE_FORMAT,
+          version: 1,
+          savedAt,
+          presetId: String(presetId),
+          sceneJSON
+        };
+        const text = JSON.stringify(record);
+        if (text.length > MAX_AUTOSAVE_LENGTH) throw new Error("Autosave exceeds size limit");
+        this.storage.setItem(this.key, text);
+        this.lastSavedAt = savedAt;
+        this.lastError = null;
+        return true;
+      } catch (error) {
+        this.lastError = error;
+        return false;
+      }
+    }
+    discard() {
+      if (this.timer !== null) this.clearTimer(this.timer);
+      this.timer = null;
+      this.pending = null;
+      try {
+        this.storage?.removeItem(this.key);
+        this.lastError = null;
+        return true;
+      } catch (error) {
+        this.lastError = error;
+        return false;
+      }
     }
   };
 
@@ -41933,6 +42037,9 @@ void main() {
       }
     });
     let lastCommittedSnapshot = null;
+    let currentPresetId = "qs3d-island";
+    let sceneAutosave = null;
+    const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
     const updateHistoryButtons = () => {
       hud?.setHistoryState?.(history.canUndo(), history.canRedo());
     };
@@ -41947,6 +42054,7 @@ void main() {
       }
       lastCommittedSnapshot = captureSnapshot();
       updateHistoryButtons();
+      scheduleAutosave();
     };
     const applySnapshot = (snapshot) => {
       if (!snapshot) return;
@@ -41975,6 +42083,7 @@ void main() {
       syncWorldArchAndLights();
       lastCommittedSnapshot = captureSnapshot();
       updateHistoryButtons();
+      scheduleAutosave();
     };
     const cameraController = new CameraController({
       camera: pipeline.camera,
@@ -41988,6 +42097,7 @@ void main() {
       }
     });
     const loadPreset = (presetId, immediateCamera = false) => {
+      currentPresetId = presetId;
       interaction?.clearSelection?.();
       buildPresetScene(presetId, { world, arch, pipeline });
       syncWorldArchAndLights();
@@ -42000,6 +42110,7 @@ void main() {
       }
       cameraController.framePreset(presetId, immediateCamera);
       resetHistoryWithCurrentState();
+      scheduleAutosave();
     };
     const handleUndo = () => {
       const current = captureSnapshot();
@@ -42084,18 +42195,21 @@ void main() {
       onTimeOfDayChange: (hours) => {
         pipeline.setTimeOfDay?.(Number(hours));
         syncLanternLights();
+        scheduleAutosave();
       },
       onTimeChange: (hours) => hudCallbacks.onTimeOfDayChange(hours),
       onSeasonChange: (season) => {
         audio.playUiTick?.();
         world.setSeason?.(season);
         pipeline.setWeather?.({ season });
+        scheduleAutosave();
       },
       onWeatherChange: (weatherPatch) => {
         if (weatherPatch?.season) {
           world.setSeason?.(weatherPatch.season);
         }
         pipeline.setWeather?.(weatherPatch);
+        scheduleAutosave();
       },
       onDoFChange: (dofPatch) => {
         pipeline.setDoF?.(dofPatch);
@@ -42165,6 +42279,34 @@ void main() {
     onResize();
     loadPreset("qs3d-island", true);
     hud.setActiveTool?.("select");
+    let storage = null;
+    try {
+      storage = window.localStorage;
+    } catch {
+    }
+    sceneAutosave = new SceneAutosave({ storage, history });
+    const checkpoint = sceneAutosave.read();
+    if (checkpoint) {
+      void history.importJSON(checkpoint.sceneJSON).then((snapshot) => {
+        if (PRESET_SCENES.some((preset) => preset.id === checkpoint.presetId)) {
+          currentPresetId = checkpoint.presetId;
+          hud.setPresetValue?.(currentPresetId);
+          cameraController.framePreset(currentPresetId, true);
+        }
+        applySnapshot(snapshot);
+        resetHistoryWithCurrentState();
+        hud.showToast?.("\u0110\xE3 kh\xF4i ph\u1EE5c thi\u1EBFt k\u1EBF t\u1EF1 l\u01B0u tr\xEAn thi\u1EBFt b\u1ECB n\xE0y.", 3200);
+      }).catch((error) => {
+        console.warn("[qs3d] Autosave is damaged; opening a fresh scene:", error);
+        hud.showToast?.("B\u1EA3n t\u1EF1 l\u01B0u kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c. B\u1EA1n v\u1EABn c\xF3 th\u1EC3 m\u1EDF t\u1EC7p JSON.", 4200);
+      });
+    } else if (sceneAutosave.lastError) {
+      hud.showToast?.("Kh\xF4ng th\u1EC3 \u0111\u1ECDc b\u1EA3n t\u1EF1 l\u01B0u tr\xEAn thi\u1EBFt b\u1ECB.", 3200);
+    }
+    window.addEventListener("pagehide", () => sceneAutosave?.flush());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") sceneAutosave?.flush();
+    });
     window.__glade = {
       pipeline,
       world,
@@ -42177,6 +42319,7 @@ void main() {
       loadPreset,
       captureSnapshot,
       applySnapshot,
+      sceneAutosave,
       adaptiveQuality
     };
     let prevTime = performance.now();

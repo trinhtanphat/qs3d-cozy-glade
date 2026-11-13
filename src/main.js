@@ -4,6 +4,7 @@ import { ArchitectureManager } from './arch/ArchitectureManager.js';
 import { WorldManager } from './world/WorldManager.js';
 import { AudioEngine } from './ux/AudioEngine.js';
 import { HistoryManager } from './ux/HistoryManager.js';
+import { SceneAutosave } from './ux/SceneAutosave.js';
 import { PRESET_SCENES, buildPresetScene } from './ux/PresetScenes.js';
 import { HUDController } from './ux/HUDController.js';
 import { CameraController } from './game/CameraController.js';
@@ -135,6 +136,9 @@ async function bootstrap() {
   });
 
   let lastCommittedSnapshot = null;
+  let currentPresetId = 'qs3d-island';
+  let sceneAutosave = null;
+  const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
 
   const updateHistoryButtons = () => {
     hud?.setHistoryState?.(history.canUndo(), history.canRedo());
@@ -152,6 +156,7 @@ async function bootstrap() {
     }
     lastCommittedSnapshot = captureSnapshot();
     updateHistoryButtons();
+    scheduleAutosave();
   };
 
   const applySnapshot = (snapshot) => {
@@ -181,6 +186,7 @@ async function bootstrap() {
     syncWorldArchAndLights();
     lastCommittedSnapshot = captureSnapshot();
     updateHistoryButtons();
+    scheduleAutosave();
   };
 
   const cameraController = new CameraController({
@@ -196,6 +202,7 @@ async function bootstrap() {
   });
 
   const loadPreset = (presetId, immediateCamera = false) => {
+    currentPresetId = presetId;
     interaction?.clearSelection?.();
     buildPresetScene(presetId, { world, arch, pipeline });
     syncWorldArchAndLights();
@@ -208,6 +215,7 @@ async function bootstrap() {
     }
     cameraController.framePreset(presetId, immediateCamera);
     resetHistoryWithCurrentState();
+    scheduleAutosave();
   };
 
   const handleUndo = () => {
@@ -305,6 +313,7 @@ async function bootstrap() {
     onTimeOfDayChange: (hours) => {
       pipeline.setTimeOfDay?.(Number(hours));
       syncLanternLights();
+      scheduleAutosave();
     },
     onTimeChange: (hours) => hudCallbacks.onTimeOfDayChange(hours),
 
@@ -312,6 +321,7 @@ async function bootstrap() {
       audio.playUiTick?.();
       world.setSeason?.(season);
       pipeline.setWeather?.({ season });
+      scheduleAutosave();
     },
 
     onWeatherChange: (weatherPatch) => {
@@ -319,6 +329,7 @@ async function bootstrap() {
         world.setSeason?.(weatherPatch.season);
       }
       pipeline.setWeather?.(weatherPatch);
+      scheduleAutosave();
     },
 
     onDoFChange: (dofPatch) => {
@@ -400,6 +411,34 @@ async function bootstrap() {
   loadPreset('qs3d-island', true);
   hud.setActiveTool?.('select');
 
+  // Recover the last locally saved build without sending data to a server.
+  // Failure to read storage or validate a checkpoint must never block WebGL.
+  let storage = null;
+  try { storage = window.localStorage; } catch { /* Storage denied */ }
+  sceneAutosave = new SceneAutosave({ storage, history });
+  const checkpoint = sceneAutosave.read();
+  if (checkpoint) {
+    void history.importJSON(checkpoint.sceneJSON).then((snapshot) => {
+      if (PRESET_SCENES.some((preset) => preset.id === checkpoint.presetId)) {
+        currentPresetId = checkpoint.presetId;
+        hud.setPresetValue?.(currentPresetId);
+        cameraController.framePreset(currentPresetId, true);
+      }
+      applySnapshot(snapshot);
+      resetHistoryWithCurrentState();
+      hud.showToast?.('Đã khôi phục thiết kế tự lưu trên thiết bị này.', 3200);
+    }).catch((error) => {
+      console.warn('[qs3d] Autosave is damaged; opening a fresh scene:', error);
+      hud.showToast?.('Bản tự lưu không đọc được. Bạn vẫn có thể mở tệp JSON.', 4200);
+    });
+  } else if (sceneAutosave.lastError) {
+    hud.showToast?.('Không thể đọc bản tự lưu trên thiết bị.', 3200);
+  }
+  window.addEventListener('pagehide', () => sceneAutosave?.flush());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') sceneAutosave?.flush();
+  });
+
   // Expose clean automation & inspection handle
   window.__glade = {
     pipeline,
@@ -413,6 +452,7 @@ async function bootstrap() {
     loadPreset,
     captureSnapshot,
     applySnapshot,
+    sceneAutosave,
     adaptiveQuality,
   };
 

@@ -108,3 +108,34 @@ Result: **PASS, exit code 0**, `errors:[]`.
 - Real Chrome headless ANGLE renderer: `Intel(R) UHD Graphics 620 (0x00005917) Direct3D11`, explicitly **not** SwiftShader.
 - Viewport **390×844 (emulated mobile in desktop Chrome)**, device pixel ratio 1.0, Eco renderer pixel ratio 0.85. After the scene loaded: telemetry **31 FPS / 32.08 ms**; after steady observation **27 FPS / 37.13 ms**, 125 draw calls, 531,219 triangles, 3000 grass instances, no test errors, exit code 0.
 - This is a measured hardware run of the **new QA terrain-LOD branch**, not a guarantee of 30 FPS on all GPUs, physical mobile devices or sustained multi-hour play. FPS varies with GPU/CPU load. Previous public Eco measurements on this hardware ranged from roughly 15 to 22 FPS under different loads, so direct speedup percentages are not claimed.
+
+## 13/11/2026 — Persistent local autosave and full real-click E2E
+
+Previous release only supported manual JSON download/import: unsaved edits could disappear on closing a tab. This update adds a **browser-local** checkpoint (key `qs3d-cozy-glade:scene-autosave-v1`) on building edits, map change, time/weather adjustments, undo/redo and JSON import. Writes are debounced (1.8s), flushed on tab/page hide, and restored on next page load. Stored scenes are parsed with the existing safe JSON importer; malformed data never blocks game startup and is left intact for recovery. When storage is blocked or full, game interaction and manual file export continue normally. A manual quality selection is still preserved separately.
+
+The serialization path was refactored to expose `HistoryManager.serializeJSON(snapshot)` without triggering a browser download; manual Save JSON still downloads identically. On restore, the chosen map name and camera framing are reapplied, with undo history reset to the recovered baseline. Autosave is **per browser/device** and does not synchronize between accounts/devices; use Save JSON as a portable backup.
+
+- `npm test`: 94/94 PASS (including 9 autosave unit tests, storage denial/quota/corruption, lazy debounce, pure JSON round-trip).
+- `npm run build` PASS; `git diff --check` PASS.
+- Full Playwright Chrome 1280×800 **real pointer interactions** on isolated `http://127.0.0.1:5487/`:
+  1. Set time 18:45; assert checkpoint exists (316,555 chars); reload → **18:45 restored**.
+  2. Select Empty Meadow and click real **House** tool + canvas; 0 → 1 building; assert checkpoint stores `empty-meadow` and 1 building; reload → same map and building.
+  3. Place another house and click real Undo then Redo: building counts **2 → 1 → 2**.
+  4. Replace autosave with invalid JSON and reload; game remains playable, detects damaged save, zero page/console/network errors.
+- Full E2E exit code **0**, `success: true`, `errorCount: 0`. Evidence file local: `C:\ProgramData\QS3D\GladeDemo\qa-autosave-gameplay.json`.
+- Initial browser QA caught `Illegal invocation` from passing unbound `setTimeout` methods into the module; fixed using bound-safe wrapper functions before any public release. Float32 field comparisons use correct precision tolerance.
+- Reproducible test: `npm ci`, `npm run build`, then `GAME_URL=http://127.0.0.1:5487/ npm run test:e2e` after starting the isolated QA origin. Windows Chrome default path is used; override `CHROME_BIN` if needed. Set `QA_RESULTS_DIR` to put logs outside Git checkout. No GitHub Actions used.
+
+Limitations explicitly not claimed: physical iOS/Android, Safari, all GPUs at 60 FPS, multi-hour uninterrupted rendering, and cloud/account synchronization.
+
+### 13/11/2026 — Reproducible E2E rerun and GPU caveat
+
+- `npm run test:e2e` from the actual Git working tree (Playwright Core v1.58.2, Chrome, isolated Win11-181 localhost :5487) **PASS exit 0** with `success:true`, `errorCount:0`:
+  - 13:15 → 18:45 auto-saved; browser reload restores 18:45.
+  - Empty Meadow + real House click adds 1 building; autosave stores the map and new building; browser reload restores exactly 1.
+  - Another house + real Undo/Redo: 2 → 1 → 2 buildings.
+  - Deliberately corrupt autosave in **fresh separate browser context**: app still boots with WebGL2 and detects invalid data.
+- An earlier rerun repeatedly reloaded WebGL in the same context and had a Chrome headless process close at the fourth reload on WIN11-181 (62 Chrome processes, ~2.4 GiB free RAM). The final reproducible QA script runs the corrupted-save case in a fresh context to avoid compounding software-renderer memory pressure.
+- A separate Chrome/ANGLE D3D11 attempt on Intel UHD 620 did **not** qualify as passing: WebGL context creation was blocked/lost by that browser at startup. No GPU FPS claim is made for this autosave feature. Existing previous hardware performance benchmarks are separately recorded in this file.
+- Automated repo checks: `npm run build` PASS; `npm test` **94/94 PASS**; `npm audit --audit-level=moderate` **0 vulnerabilities**; syntax check and `git diff --check` PASS.
+- CI uses no GitHub Actions; the browser test is reproducible locally via `npm run test:e2e` with `GAME_URL`, `QA_RESULTS_DIR` and optional `CHROME_BIN`.
