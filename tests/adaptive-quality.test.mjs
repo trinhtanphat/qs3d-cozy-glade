@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AdaptiveQuality, QUALITY_ORDER } from '../src/engine/AdaptiveQuality.js';
+import { AdaptiveQuality, QUALITY_ORDER, recommendedQualityForRenderer } from '../src/engine/AdaptiveQuality.js';
 
 const make = (opts={})=>new AdaptiveQuality({startTime:0,...opts});
 const sample = (q,now,fps=10)=>({quality:q,now,fps});
@@ -66,4 +66,23 @@ test('auto quality never upgrades or oscillates from healthy FPS',()=>{
  assert.equal(a.observe(sample('eco',12000,80)),null);
  assert.equal(a.observe(sample('balanced',20000,40)),null);
  assert.equal(a.observe(sample('high',30000,60)),null);
+});
+
+test('low-end Intel UHD 620 uses Eco rather than unplayable High',()=>{
+ const renderer='ANGLE (Intel, Intel(R) UHD Graphics 620 (0x00005917) Direct3D11 vs_5_0 ps_5_0, D3D11)';
+ assert.equal(recommendedQualityForRenderer('high',renderer),'eco');
+ assert.equal(recommendedQualityForRenderer('balanced',renderer),'eco');
+});
+test('old Intel HD Graphics 520 likewise uses Eco',()=>{
+ assert.equal(recommendedQualityForRenderer('high','Intel(R) HD Graphics 520'),'eco');
+});
+test('modern discrete and integrated GPUs retain chosen defaults',()=>{
+ for(const renderer of ['NVIDIA GeForce RTX 4070','AMD Radeon RX 6800','Intel(R) Iris(R) Xe Graphics','Apple M4 GPU','']){
+  assert.equal(recommendedQualityForRenderer('high',renderer),'high');
+ }
+});
+test('missing or non-string renderer identification falls back safely',()=>{
+ for(const renderer of [null,undefined,17,{}]){
+  assert.equal(recommendedQualityForRenderer('balanced',renderer),'balanced');
+ }
 });

@@ -1,5 +1,5 @@
 import { createRendererPipeline } from './engine/RendererPipeline.js';
-import { AdaptiveQuality } from './engine/AdaptiveQuality.js';
+import { AdaptiveQuality, recommendedQualityForRenderer } from './engine/AdaptiveQuality.js';
 import { ArchitectureManager } from './arch/ArchitectureManager.js';
 import { WorldManager } from './world/WorldManager.js';
 import { AudioEngine } from './ux/AudioEngine.js';
@@ -43,9 +43,18 @@ async function bootstrap() {
     return;
   }
 
-  // Start touch screens at a lighter GPU tier; desktop keeps the full preset.
-  const initialQuality = window.matchMedia?.('(max-width: 760px) and (pointer: coarse)')?.matches
-    ? 'balanced' : 'high';
+  // Respect explicit preferences, use Balanced on touch screens, and
+  // detect a few proven weak GPU families after WebGL context creation.
+  const QUALITY_SETTING_KEY = 'qs3d-glade-graphics-tier';
+  let selectedQuality = null;
+  try {
+    const saved = window.localStorage?.getItem(QUALITY_SETTING_KEY);
+    if (['eco', 'balanced', 'high', 'ultra'].includes(saved)) selectedQuality = saved;
+  } catch { /* Storage blocked or disabled: play normally */ }
+  let initialQuality = selectedQuality || (
+    window.matchMedia?.('(max-width: 760px) and (pointer: coarse)')?.matches
+      ? 'balanced' : 'high'
+  );
   let pipeline;
   try {
     pipeline = createRendererPipeline(canvas, {
@@ -57,6 +66,22 @@ async function bootstrap() {
     console.error('[tiny-glade] Failed to initialize WebGL2 pipeline:', err);
     setLoadingError(`Không thể khởi động đồ họa WebGL2: ${err?.message || err}`);
     return;
+  }
+
+  // WebGL_debug_renderer_info is optional. Never depend on or send this
+  // identification to a service; absent permission falls back to FPS-based
+  // adaptive quality. The user's saved preference always wins.
+  if (!selectedQuality) {
+    try {
+      const gl = pipeline.renderer.getContext();
+      const info = gl.getExtension('WEBGL_debug_renderer_info');
+      const rendererName = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : '';
+      const recommended = recommendedQualityForRenderer(initialQuality, rendererName);
+      if (recommended !== initialQuality) {
+        pipeline.setQuality(recommended);
+        initialQuality = recommended;
+      }
+    } catch { /* Browser hides GPU information */ }
   }
 
   const audio = new AudioEngine();
@@ -213,6 +238,7 @@ async function bootstrap() {
   };
 
   const adaptiveQuality = new AdaptiveQuality({ startTime: performance.now() });
+  if (selectedQuality) adaptiveQuality.manualOverride();
   const hudCallbacks = {
     presets: PRESET_SCENES,
 
@@ -301,6 +327,7 @@ async function bootstrap() {
 
     onQualityChange: (tier) => {
       adaptiveQuality.manualOverride();
+      try { window.localStorage?.setItem(QUALITY_SETTING_KEY, tier); } catch {}
       audio.playUiTick?.();
       pipeline.setQuality?.(tier);
       world.setQuality?.(tier);
