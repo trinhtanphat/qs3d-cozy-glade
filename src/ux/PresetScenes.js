@@ -4,7 +4,10 @@
  * automatic water bridges, multi-wing compound castles/cottages, and lush foliage.
  */
 
+import { buildQS3DIsland } from './QS3DIsland.js';
+
 export const PRESET_SCENES = [
+  { id: 'qs3d-island', label: 'Đảo Xanh QS3D (Mặc định)' },
   { id: 'lakeside-keep', label: 'Lakeside Keep (Default)' },
   { id: 'cotswold-hamlet', label: 'Cotswold Brook Hamlet' },
   { id: 'moonlit-abbey', label: 'Starlit Castle Ruins' },
@@ -880,6 +883,8 @@ export function buildPresetScene(presetId, { world, arch, pipeline }) {
   world?.clear?.();
 
   switch (presetId) {
+    case 'qs3d-island':
+      return buildQS3DIsland({ world, arch, pipeline });
     case 'cotswold-hamlet':
       return buildCotswoldHamlet({ world, arch, pipeline });
     case 'moonlit-abbey':

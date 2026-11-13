@@ -1,3 +1,38 @@
+# QS3D · Hòn Đảo Bình Yên
+
+Game xây cảnh 3D chạy trong trình duyệt, phát triển trên nền MIT FireTable/tiny-glade.
+
+Chơi demo: https://glade.qs3d.site/
+GitHub fork thực sự (bản gốc): https://github.com/trinhtanphat/qs3d-tiny-glade-upstream
+Repo QS3D tùy chỉnh: https://github.com/trinhtanphat/qs3d-cozy-glade
+
+## Bản mới
+
+- Đảo Xanh QS3D (mặc định): biển, bờ cát, hồ nước, cầu, đường đi, nhà mái xanh ngọc, cây, hoa và hàng rào.
+- Bốn cảnh nguyên bản vẫn nguyên vẹn trong menu chọn cảnh.
+- Công cụ xây nhà, tường, hàng rào, đường, chỉnh địa hình, trồng cây, sửa, xóa, hoàn tác, nhập/xuất JSON, ngày/đêm, đi bộ và chụp ảnh.
+- Việt hóa các điều khiển chính và bảng trợ giúp tiếng Việt.
+
+## Chạy và kiểm thử
+
+Yêu cầu Node.js 20+.
+1. npm ci
+2. npm test
+3. npm run build
+4. node server.mjs — mở http://127.0.0.1:5486 (hoặc đặt biến PORT).
+
+Tệp tiny-glade-aaa.html chứa engine và trợ giúp trong một HTML độc lập. Mã nguồn chính: src, index.html, styles.css, qs3d-guide.*, build.mjs. Thư mục dist được build lại từ mã nguồn.
+
+## Ghi công và quyền sử dụng
+
+© 2026 FireTable. Nguồn gốc: https://github.com/FireTable/tiny-glade, giấy phép MIT được giữ tại LICENSE. Đây là bản phái sinh độc lập được xây từ tài liệu MIT, lấy cảm hứng từ ảnh Reel do người dùng cung cấp; không phải sản phẩm hoặc mã nguồn chính thức của game xuất hiện trong Reel. Không sao chép tài nguyên bản quyền chưa được cấp phép.
+
+Kiểm toán Git và đồng bộ đủ refs: UPSTREAM-AUDIT.md. Quy trình QA và vận hành: QS3D-NOTES.md.
+
+---
+
+# Original upstream README (preserved below)
+
 <p align="center">
   <img src="public/logo.png" width="96" height="96" alt="Tiny Glade Logo" style="border-radius: 16px;" />
 </p>

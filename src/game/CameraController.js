@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 const PRESET_ORBIT_POSES = {
+  'qs3d-island': { target: [0, 0.75, 1.5], yaw: 0.28, pitch: 0.72, distance: 61.0 },
   'lakeside-keep': { target: [0.0, 3.1, 3.2], yaw: 0.32, pitch: 0.27, distance: 38.5 },
   'cotswold-hamlet': { target: [0.0, 2.5, 1.5], yaw: -0.46, pitch: 0.29, distance: 37.5 },
   'moonlit-abbey': { target: [0.0, 4.1, 2.2], yaw: 0.30, pitch: 0.25, distance: 42.0 },

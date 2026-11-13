@@ -363,7 +363,7 @@ async function bootstrap() {
   onResize();
 
   // Build breathtaking default starter diorama: Lakeside Keep
-  loadPreset('lakeside-keep', true);
+  loadPreset('qs3d-island', true);
   hud.setActiveTool?.('select');
 
   // Expose clean automation & inspection handle

@@ -10,72 +10,72 @@ import { PRESET_SCENES } from './PresetScenes.js';
 const TOOLS = [
   {
     id: 'select',
-    shortLabel: 'Select',
-    tooltip: 'Select / Edit Handles & Pet Sheep',
+    shortLabel: 'Chọn',
+    tooltip: 'Chọn, chỉnh sửa và vuốt ve cừu',
     hotkey: '1',
     altKey: 'v',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.8l12.2 6.6-5.3 1.6-2.2 5.4L5.5 3.8z"/><path d="M13.2 12.8l4.6 4.6"/></svg>`,
   },
   {
     id: 'cottage',
-    shortLabel: 'Cottage',
-    tooltip: 'Build Cottage / Hall',
+    shortLabel: 'Nhà',
+    tooltip: 'Xây nhà hoặc đại sảnh',
     hotkey: '2',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5L12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5a2 2 0 0 1 4 0v5"/><path d="M16.5 4.8v3.2"/></svg>`,
   },
   {
     id: 'tower',
-    shortLabel: 'Tower',
-    tooltip: 'Build Round Tower',
+    shortLabel: 'Tháp',
+    tooltip: 'Xây tháp tròn',
     hotkey: '3',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 10.5Q12 2.5 17.5 10.5Z"/><path d="M8 10.5v9.5h8v-9.5"/><path d="M6.5 20h11"/><path d="M12 13.5v2"/></svg>`,
   },
   {
     id: 'wall',
-    shortLabel: 'Wall',
-    tooltip: 'Draw Stone Wall',
+    shortLabel: 'Tường',
+    tooltip: 'Vẽ tường đá',
     hotkey: '4',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="1.5"/><path d="M3 10.5h18M3 15h18M9 6v4.5M15 6v4.5M12 10.5V15M7.5 15v4M16.5 15v4"/></svg>`,
   },
   {
     id: 'fence',
-    shortLabel: 'Fence',
-    tooltip: 'Draw Wooden Fence',
+    shortLabel: 'Hàng rào',
+    tooltip: 'Vẽ hàng rào gỗ',
     hotkey: '5',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l1.5-2L9 6v14H6V6zM15 6l1.5-2L18 6v14h-3V6z"/><path d="M3.5 10h17M3.5 15.5h17"/></svg>`,
   },
   {
     id: 'path',
-    shortLabel: 'Path',
-    tooltip: 'Paint Path — Auto-Arches & Bridges',
+    shortLabel: 'Đường',
+    tooltip: 'Vẽ đường, tự động tạo cầu và cổng vòm',
     hotkey: '6',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 20c.5-4.5 3.5-6.5 3.5-10S9.5 5.5 10 4"/><path d="M15.5 20c.3-3.8 2.8-5.8 2.8-9.5S16 5.8 16.3 4"/><circle cx="12" cy="15.5" r="0.9"/><circle cx="14" cy="11" r="0.9"/><circle cx="13" cy="6.8" r="0.8"/></svg>`,
   },
   {
     id: 'clutter',
-    shortLabel: 'Clutter',
-    tooltip: 'Place Lantern / Window / Door / Flag / Chimney',
+    shortLabel: 'Trang trí',
+    tooltip: 'Thêm đèn, cửa, cờ và ống khói',
     hotkey: '7',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M9 6h6l1.2 3.5-1.2 7.5H9L7.8 9.5 9 6z"/><path d="M9.5 20h5"/><path d="M12 10.5v3"/></svg>`,
   },
   {
     id: 'terrain',
-    shortLabel: 'Terrain',
-    tooltip: 'Sculpt Hills & Ponds',
+    shortLabel: 'Địa hình',
+    tooltip: 'Tạo đồi và đào ao',
     hotkey: '8',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 16.5c2.8-5.5 6.2-8.5 9-8.5s5.2 3.8 10 8.5"/><path d="M13.5 11.5c1.8-2.4 3.4-3.5 5-3.5 1.4 0 2.6.9 3.5 2.5"/><path d="M3 19.5c2.2 1.2 4.5 1.2 6.7 0 2.2-1.2 4.5-1.2 6.7 0 1.6.9 3.2.9 4.6 0"/></svg>`,
   },
   {
     id: 'nature',
-    shortLabel: 'Nature',
-    tooltip: 'Plant Trees & Wildflowers',
+    shortLabel: 'Cây cỏ',
+    tooltip: 'Trồng cây và hoa dại',
     hotkey: '9',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-5"/><path d="M12 4.5a4.5 4.5 0 0 0-4.1 6.3A3.8 3.8 0 0 0 9.5 17h5a3.8 3.8 0 0 0 1.6-6.2A4.5 4.5 0 0 0 12 4.5z"/><path d="M18.5 20v-3m-1.5 1.2l1.5-1.2 1.5 1.2"/></svg>`,
   },
   {
     id: 'demolish',
-    shortLabel: 'Erase',
-    tooltip: 'Erase / Demolish',
+    shortLabel: 'Xóa',
+    tooltip: 'Xóa vật thể',
     hotkey: '0',
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 4.5l3 3L8.5 18.5H5.5v-3L16.5 4.5z"/><path d="M14 7l3 3"/><path d="M4 20h16"/></svg>`,
   },
@@ -84,7 +84,8 @@ const TOOLS = [
 const ROOF_SWATCHES = [
   { id: 'terracotta', label: 'Terracotta', hex: '#b8573b' },
   { id: 'slate', label: 'Slate', hex: '#47586c' },
-  { id: 'moss', label: 'Moss', hex: '#556e48' },
+  { id: 'moss', label: 'Rêu', hex: '#556e48' },
+  { id: 'teal', label: 'Xanh ngọc', hex: '#208d86' },
   { id: 'ochre', label: 'Ochre', hex: '#c48d3f' },
   { id: 'plum', label: 'Plum', hex: '#6d4b5b' },
 ];
@@ -126,10 +127,10 @@ const NATURE_TYPES = [
 ];
 
 const TIME_PRESETS = [
-  { id: 'dawn', label: 'Dawn', hours: 6.2 },
-  { id: 'noon', label: 'Noon', hours: 12.5 },
-  { id: 'golden', label: 'Golden Hour', hours: 16.7 },
-  { id: 'night', label: 'Night', hours: 21.6 },
+  { id: 'dawn', label: 'Bình minh', hours: 6.2 },
+  { id: 'noon', label: 'Buổi trưa', hours: 12.5 },
+  { id: 'golden', label: 'Chiều vàng', hours: 16.7 },
+  { id: 'night', label: 'Ban đêm', hours: 21.6 },
 ];
 
 const ICONS = {
@@ -307,14 +308,14 @@ export class HUDController {
     const divider1 = document.createElement('span');
     divider1.className = 'tg-divider';
 
-    const undoBtn = this._makeIconBtn(ICONS.undo, 'Undo', 'Undo (Ctrl+Z / Z)', () => {
+    const undoBtn = this._makeIconBtn(ICONS.undo, 'Hoàn tác', 'Hoàn tác (Ctrl+Z / Z)', () => {
       if (undoBtn.disabled) return;
       this._tick();
       this.callbacks.onUndo?.();
     });
     undoBtn.dataset.action = 'undo';
 
-    const redoBtn = this._makeIconBtn(ICONS.redo, 'Redo', 'Redo (Ctrl+Shift+Z)', () => {
+    const redoBtn = this._makeIconBtn(ICONS.redo, 'Làm lại', 'Làm lại (Ctrl+Shift+Z)', () => {
       if (redoBtn.disabled) return;
       this._tick();
       this.callbacks.onRedo?.();
@@ -324,7 +325,7 @@ export class HUDController {
     const divider2 = document.createElement('span');
     divider2.className = 'tg-divider';
 
-    const exportBtn = this._makeIconBtn(ICONS.export, 'Save', 'Export Scene JSON', () => {
+    const exportBtn = this._makeIconBtn(ICONS.export, 'Lưu', 'Xuất thiết kế JSON', () => {
       this._tick();
       this._cbExport();
     });
@@ -344,7 +345,7 @@ export class HUDController {
       fileInput.value = '';
     });
 
-    const importBtn = this._makeIconBtn(ICONS.import, 'Load', 'Import Scene JSON', () => {
+    const importBtn = this._makeIconBtn(ICONS.import, 'Mở', 'Nhập thiết kế JSON', () => {
       this._tick();
       fileInput.click();
     });
@@ -416,8 +417,8 @@ export class HUDController {
 
     const atmoBtn = this._makeIconBtn(
       ICONS.sliders,
-      'Atmosphere',
-      'Atmosphere, Lens & Quality Settings',
+      'Không khí',
+      'Thời tiết, ống kính và chất lượng',
       () => {
         this._tick();
         this._toggleDrawer();
@@ -428,8 +429,8 @@ export class HUDController {
 
     const walkBtn = this._makeIconBtn(
       ICONS.walk,
-      'Walk',
-      'First-Person Tiny Stroll Mode (F)',
+      'Đi bộ',
+      'Đi bộ góc nhìn thứ nhất (F)',
       () => {
         this._tick();
         const next = !this._walkMode;
@@ -442,7 +443,7 @@ export class HUDController {
 
     const photoBtn = this._makeIconBtn(
       ICONS.camera,
-      'Photo',
+      'Chụp ảnh',
       'Photo Mode — Hide UI & Capture PNG (P)',
       () => {
         this._tick();
@@ -506,11 +507,11 @@ export class HUDController {
     walkBanner.hidden = true;
     stopCanvasPropagation(walkBanner);
     const walkText = document.createElement('span');
-    walkText.textContent = 'Stroll Mode · WASD to walk · Drag to look · Shift to trot';
+    walkText.textContent = 'Chế độ đi bộ · WASD di chuyển · Kéo chuột để nhìn · Shift chạy';
     const exitWalkBtn = document.createElement('button');
     exitWalkBtn.type = 'button';
     exitWalkBtn.className = 'tg-chip is-active';
-    exitWalkBtn.textContent = 'Exit Stroll (F)';
+    exitWalkBtn.textContent = 'Thoát đi bộ (F)';
     exitWalkBtn.addEventListener('click', (e) => {
       this._blurOnPointer(e, exitWalkBtn);
       this._tick();
@@ -591,7 +592,7 @@ export class HUDController {
     exitPhotoBtn.type = 'button';
     exitPhotoBtn.className = 'tg-btn';
     exitPhotoBtn.dataset.action = 'exit-photo';
-    exitPhotoBtn.textContent = 'Exit Photo Mode (P)';
+    exitPhotoBtn.textContent = 'Thoát chụp ảnh (P)';
     exitPhotoBtn.addEventListener('click', (e) => {
       this._blurOnPointer(e, exitPhotoBtn);
       this._tick();
@@ -676,15 +677,15 @@ export class HUDController {
     seasonRow.className = 'tg-drawer-row';
     const seasonLbl = document.createElement('span');
     seasonLbl.className = 'tg-drawer-label';
-    seasonLbl.textContent = 'Season';
+    seasonLbl.textContent = 'Mùa';
 
     const seasonGroup = document.createElement('div');
     seasonGroup.className = 'tg-seg-group';
     this._seasonBtns = [];
     for (const s of [
-      { id: 'spring', label: 'Spring' },
-      { id: 'summer', label: 'Summer' },
-      { id: 'autumn', label: 'Autumn' },
+      { id: 'spring', label: 'Xuân' },
+      { id: 'summer', label: 'Hè' },
+      { id: 'autumn', label: 'Thu' },
     ]) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -708,7 +709,7 @@ export class HUDController {
 
     // Weather Sliders: Cloudiness, Valley Mist, Wind
     const cloudCtrl = this._makeDrawerSlider(
-      'Cloudiness',
+      'Mây',
       0,
       1,
       0.02,
@@ -720,7 +721,7 @@ export class HUDController {
       }
     );
     const mistCtrl = this._makeDrawerSlider(
-      'Valley Mist',
+      'Sương mù',
       0,
       1,
       0.02,
@@ -732,7 +733,7 @@ export class HUDController {
       }
     );
     const windCtrl = this._makeDrawerSlider(
-      'Wind Breeze',
+      'Gió',
       0,
       1.5,
       0.05,
@@ -757,7 +758,7 @@ export class HUDController {
     dofHeader.className = 'tg-drawer-row';
     const dofLbl = document.createElement('span');
     dofLbl.className = 'tg-drawer-label';
-    dofLbl.textContent = 'Tilt-Shift Lens';
+    dofLbl.textContent = 'Ống kính Tilt-Shift';
 
     const dofToggle = document.createElement('button');
     dofToggle.type = 'button';
@@ -778,7 +779,7 @@ export class HUDController {
     dofHeader.append(dofLbl, dofToggle);
 
     const apertureCtrl = this._makeDrawerSlider(
-      'Aperture Blur',
+      'Độ mờ khẩu độ',
       0.0,
       1.0,
       0.02,
@@ -790,7 +791,7 @@ export class HUDController {
       }
     );
     const focusCtrl = this._makeDrawerSlider(
-      'Focus Distance',
+      'Khoảng cách lấy nét',
       6,
       65,
       0.5,
@@ -815,15 +816,15 @@ export class HUDController {
     qualRow.className = 'tg-drawer-row';
     const qualLbl = document.createElement('span');
     qualLbl.className = 'tg-drawer-label';
-    qualLbl.textContent = 'Quality';
+    qualLbl.textContent = 'Chất lượng';
 
     const qualGroup = document.createElement('div');
     qualGroup.className = 'tg-seg-group';
     this._qualBtns = [];
     for (const q of [
-      { id: 'ultra', label: 'Ultra' },
-      { id: 'high', label: 'High' },
-      { id: 'balanced', label: 'Balanced' },
+      { id: 'ultra', label: 'Siêu cao' },
+      { id: 'high', label: 'Cao' },
+      { id: 'balanced', label: 'Cân bằng' },
     ]) {
       const b = document.createElement('button');
       b.type = 'button';
