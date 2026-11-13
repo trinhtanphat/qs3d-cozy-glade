@@ -8,13 +8,20 @@ const hardware=process.env.GPU_RENDERER==='d3d11';
 const browserArgs=hardware
  ? ['--no-sandbox','--enable-gpu','--use-gl=angle','--use-angle=d3d11','--ignore-gpu-blocklist','--disable-software-rasterizer']
  : ['--no-sandbox','--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-gpu-sandbox','--disable-dev-shm-usage'];
-const browser=await chromium.launch({executablePath:chrome,headless:true,args:browserArgs});
+let browser=await chromium.launch({executablePath:chrome,headless:true,args:browserArgs});
 const ctx=await browser.newContext({viewport:{width:1280,height:800},acceptDownloads:true});
 const page=await ctx.newPage();
-const report={url:process.env.GAME_URL||'http://127.0.0.1:5487/',errors:[],steps:[]};
+const report={url:process.env.GAME_URL||'http://127.0.0.1:5487/',errors:[],steps:[],analyticsAborts:0};
 page.on('pageerror',e=>report.errors.push('PAGE: '+e.message));
 page.on('console',m=>{if(m.type()==='error')report.errors.push('CONSOLE: '+m.text().slice(0,250))});
-page.on('requestfailed',r=>report.errors.push('NETWORK: '+r.url()+' '+r.failure()?.errorText));
+page.on('requestfailed',r=>{
+ // Cloudflare Browser Insights may abort a beacon during navigation.
+ // Only ignore that known analytics endpoint; never mask game asset errors.
+ if(r.url().includes('/cdn-cgi/rum') && r.failure()?.errorText==='net::ERR_ABORTED') {
+   report.analyticsAborts++;return;
+ }
+ report.errors.push('NETWORK: '+r.url()+' '+r.failure()?.errorText);
+});
 const log=(name,obj={})=>{const step={name,...obj};report.steps.push(step);console.log(JSON.stringify(step));fs.writeFileSync(path.join(resultDir,'qa-autosave-gameplay.json'),JSON.stringify(report,null,2))};
 const ready=async()=>{
  await page.waitForFunction(()=>!!window.__glade && document.querySelector('#loading-overlay')?.classList.contains('is-hidden'),null,{timeout:120000});
@@ -90,6 +97,10 @@ try {
  // Isolate corrupted-storage recovery in a fresh context, so repeated
  // software-rendered WebGL reloads do not exhaust the QA machine's memory.
  await ctx.close();
+ await browser.close();
+ // Fresh Chrome process so software-rendered WebGL resources from three
+ // reloads cannot prevent the independent corrupted-storage recovery test.
+ browser=await chromium.launch({executablePath:chrome,headless:true,args:browserArgs});
  const damagedCtx=await browser.newContext({viewport:{width:1280,height:800}});
  await damagedCtx.addInitScript(()=>{
    try{localStorage.setItem('qs3d-cozy-glade:scene-autosave-v1','{BROKEN')}catch{}

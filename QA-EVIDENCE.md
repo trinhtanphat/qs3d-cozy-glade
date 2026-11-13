@@ -139,3 +139,12 @@ Limitations explicitly not claimed: physical iOS/Android, Safari, all GPUs at 60
 - A separate Chrome/ANGLE D3D11 attempt on Intel UHD 620 did **not** qualify as passing: WebGL context creation was blocked/lost by that browser at startup. No GPU FPS claim is made for this autosave feature. Existing previous hardware performance benchmarks are separately recorded in this file.
 - Automated repo checks: `npm run build` PASS; `npm test` **94/94 PASS**; `npm audit --audit-level=moderate` **0 vulnerabilities**; syntax check and `git diff --check` PASS.
 - CI uses no GitHub Actions; the browser test is reproducible locally via `npm run test:e2e` with `GAME_URL`, `QA_RESULTS_DIR` and optional `CHROME_BIN`.
+
+### 14/11/2026 — final production E2E stability correction
+- Production currently at Git commit `d456e2add6501ec21b7cdf2c7b91695d45592946`; public URL `https://glade.qs3d.site/`.
+- Previous long E2E reused a software-rendered Chrome instance too many times; at the last reload it closed. This was a QA runner reliability problem, not evidence that user data had been lost.
+- The E2E script now **closes the first Chrome process and starts a fresh Chrome process** to validate corrupt-storage recovery. This avoids cross-context GPU resource exhaustion.
+- On public HTTPS, `npm run test:e2e` with the corrected script produced **`success:true`, `errorCount:0`** with actual pointer builds and reloads: clock autosave at 18:45, clock restoration, 0→1 cottage, saved map `empty-meadow`, cottage restoration, Undo/Redo 2→1→2, corrupted-save detection and safe fallback.
+- Two `/cdn-cgi/rum` requests returned `net::ERR_ABORTED` during navigation; recorded as `analyticsAborts:2` and excluded from *game network* failures by precise URL+error matching only. Other failed requests remain test failures.
+- Public E2E record: `C:\ProgramData\QS3D\GladeDemo\pr9-public-e2e\qa-autosave-gameplay.json`.
+- Same game code; this release contains ONLY reproducible QA improvements. The original implementation's 94/94 unit tests and real browser save/restore are separately validated.
