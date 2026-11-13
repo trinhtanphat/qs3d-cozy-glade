@@ -16,6 +16,8 @@ http.createServer(async (req,res) => {
   try {p=decodeURIComponent(url.pathname);}catch{res.writeHead(400);res.end();return;}
   if(p==='/' || p==='/play' || p==='/play/') p='/index.html';
   if(p.includes('\0') || p.split(/[\\/]/).some(x=>x.startsWith('.')) || p.includes('\\')){res.writeHead(403);res.end();return;}
+  const rootItem=p.split('/')[1];
+  if(!(new Set(['index.html','qs3d-guide.css','qs3d-guide.js','tiny-glade-aaa.html','styles.css']).has(rootItem) || ['dist','public','screenshots'].includes(rootItem))){res.writeHead(403);res.end();return;}
   const full=resolve(ROOT, '.'+p);
   if(full!==ROOT && !full.startsWith(ROOT+sep)){res.writeHead(403);res.end();return;}
   try{
