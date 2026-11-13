@@ -41976,7 +41976,7 @@ void main() {
             hud?.showToast?.("\u0110\xE3 nh\u1EADp thi\u1EBFt k\u1EBF th\xE0nh c\xF4ng");
           }
         } catch (err) {
-          console.error("[tiny-glade] Failed to import JSON:", err);
+          console.warn("[tiny-glade] Rejected invalid user-provided scene JSON:", err);
           hud?.showToast?.("Kh\xF4ng th\u1EC3 \u0111\u1ECDc t\u1EC7p JSON thi\u1EBFt k\u1EBF");
         }
       },
