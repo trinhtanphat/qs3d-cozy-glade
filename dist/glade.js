@@ -24332,6 +24332,7 @@ void main() {
 
   // src/engine/WaterSystem.js
   var MAX_RIPPLES = 16;
+  var OCEAN_SURFACE_SCALE = 4;
   var WATER_VERTEX_SHADER = (
     /* glsl */
     `
@@ -24628,7 +24629,12 @@ void main() {
         uRipples: { value: this._rippleUniformArray }
       };
       const segments = opts.segments ?? 160;
-      const geometry = new PlaneGeometry(this.worldSize, this.worldSize, segments, segments);
+      const geometry = new PlaneGeometry(
+        this.worldSize * OCEAN_SURFACE_SCALE,
+        this.worldSize * OCEAN_SURFACE_SCALE,
+        segments,
+        segments
+      );
       geometry.rotateX(-Math.PI / 2);
       this.material = new ShaderMaterial({
         vertexShader: WATER_VERTEX_SHADER,

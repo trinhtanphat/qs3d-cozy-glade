@@ -8,6 +8,8 @@ http.createServer(async (req,res) => {
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options','SAMEORIGIN');
+  res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('Cross-Origin-Resource-Policy','same-origin');
   if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
   let url;
   try {url=new URL(req.url,'http://localhost');}catch{res.writeHead(400);res.end();return;}
@@ -23,8 +25,16 @@ http.createServer(async (req,res) => {
   try{
     const info=await stat(full);
     if(!info.isFile()){res.writeHead(404);res.end();return;}
+    const ext=extname(full).toLowerCase();
+    const fresh=ext==='.html'||ext==='.js'||ext==='.css';
+    const etag='"'+info.size.toString(16)+'-'+Math.trunc(info.mtimeMs).toString(16)+'"';
+    const headers={'Content-Type':TYPES[ext]||'application/octet-stream',
+      'Cache-Control':fresh?'no-cache, max-age=0, must-revalidate':'public, max-age=3600',
+      'ETag':etag,'Last-Modified':info.mtime.toUTCString()};
+    if(req.headers['if-none-match']===etag){res.writeHead(304,headers);res.end();return;}
     const buf=await readFile(full);
-    res.writeHead(200,{'Content-Type':TYPES[extname(full).toLowerCase()]||'application/octet-stream','Cache-Control':'public, max-age=120'});
+    headers['Content-Length']=buf.length;
+    res.writeHead(200,headers);
     res.end(req.method==='HEAD'?'':buf);
   }catch{res.writeHead(404,{'Content-Type':'text/plain; charset=utf-8'});res.end('Not found');}
 }).listen(PORT,'127.0.0.1',()=>console.log('QS3D Cozy Glade ready at http://127.0.0.1:'+PORT));
