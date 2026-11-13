@@ -706,3 +706,75 @@
     display: none;
   }
 }
+@media (max-width: 760px) {
+  .tg-top-left {
+    top: max(8px, env(safe-area-inset-top));
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tg-top-left > * {
+    flex-shrink: 0;
+  }
+  .tg-top-right-wrap {
+    top: calc(max(8px, env(safe-area-inset-top)) + 46px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: calc(100vw - 16px);
+    align-items: stretch;
+  }
+  .tg-top-right {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tg-top-right > * {
+    flex-shrink: 0;
+  }
+  .tg-top-left::-webkit-scrollbar,
+  .tg-top-right::-webkit-scrollbar,
+  .tg-dock::-webkit-scrollbar {
+    display: none;
+  }
+  .tg-bottom-center {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    align-items: stretch;
+  }
+  .tg-dock {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tg-tool-btn {
+    flex: 0 0 46px;
+    min-width: 46px;
+  }
+  .tg-sub-popover {
+    box-sizing: border-box;
+    max-width: 100%;
+    max-height: min(240px, 38dvh);
+    overflow-y: auto;
+  }
+}

@@ -67,3 +67,31 @@ test('No invalid or non-finite values in the generated terrain',()=>{
    assert.ok(v>=-3.5&&v<=18.0);
  }
 });
+
+test('Vietnamese locale and scene names stay translated', async()=>{
+ const {readFileSync}=await import('node:fs');
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(html,/<html lang="vi">/);
+ assert.match(html,/Đang tạo đồng cỏ/);
+ assert.match(html,/aria-label="Khung cảnh 3D/);
+ assert.deepEqual(PRESET_SCENES.map(p=>p.label),[
+  'Đảo Xanh QS3D (Mặc định)',
+  'Lâu Đài Bên Hồ',
+  'Ngôi Làng Ven Suối',
+  'Tàn Tích Dưới Trăng',
+  'Đồng Cỏ Trong Lành'
+ ]);
+});
+
+test('Standalone bundle is self-contained with deterministic LF newlines', async()=>{
+ const {readFileSync}=await import('node:fs');
+ const root=readFileSync(new URL('../tiny-glade-aaa.html',import.meta.url));
+ const dist=readFileSync(new URL('../dist/tiny-glade-aaa.html',import.meta.url));
+ const html=root.toString('utf8');
+ assert.ok(root.equals(dist),'root and dist standalone files must be identical');
+ assert.ok(!html.includes('\r'),'no CR bytes in standalone HTML');
+ for(const asset of ['./dist/glade.js','./dist/glade.css','./qs3d-guide.css','./qs3d-guide.js']){
+   assert.ok(!html.includes(asset),'standalone must inline '+asset);
+ }
+ assert.match(html,/<html lang="vi">/);
+});

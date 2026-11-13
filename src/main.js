@@ -38,20 +38,23 @@ async function bootstrap() {
   const canvas = document.getElementById('glade-canvas');
   const hudRoot = document.getElementById('hud-root');
   if (!canvas || !hudRoot) {
-    setLoadingError('Missing #glade-canvas or #hud-root container.');
+    setLoadingError('Thiếu vùng hiển thị 3D (#glade-canvas hoặc #hud-root).');
     return;
   }
 
+  // Start touch screens at a lighter GPU tier; desktop keeps the full preset.
+  const initialQuality = window.matchMedia?.('(max-width: 760px) and (pointer: coarse)')?.matches
+    ? 'balanced' : 'high';
   let pipeline;
   try {
     pipeline = createRendererPipeline(canvas, {
-      quality: 'high',
+      quality: initialQuality,
       waterLevel: WATER_LEVEL,
       worldSize: WORLD_SIZE,
     });
   } catch (err) {
     console.error('[tiny-glade] Failed to initialize WebGL2 pipeline:', err);
-    setLoadingError(`WebGL2 initialization failed: ${err?.message || err}`);
+    setLoadingError(`Không thể khởi động đồ họa WebGL2: ${err?.message || err}`);
     return;
   }
 
@@ -67,7 +70,7 @@ async function bootstrap() {
       pipeline.water?.addRipple?.(x, z, strength);
     },
   });
-  world.setQuality?.('high');
+  world.setQuality?.(initialQuality);
 
   const arch = new ArchitectureManager({
     scene: pipeline.scene,
@@ -186,7 +189,7 @@ async function bootstrap() {
     const prev = history.undo(current);
     if (prev) {
       applySnapshot(prev);
-      hud?.showToast?.('Undid last action');
+      hud?.showToast?.('Đã hoàn tác thao tác cuối');
     }
   };
 
@@ -195,7 +198,7 @@ async function bootstrap() {
     const next = history.redo(current);
     if (next) {
       applySnapshot(next);
-      hud?.showToast?.('Redid action');
+      hud?.showToast?.('Đã thực hiện lại thao tác');
     }
   };
 
@@ -204,7 +207,7 @@ async function bootstrap() {
     if (dataUrl) {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       downloadDataURL(dataUrl, `tiny-glade-${stamp}.png`);
-      hud?.showToast?.('Captured diorama screenshot');
+      hud?.showToast?.('Đã chụp ảnh cảnh 3D');
     }
   };
 
@@ -250,7 +253,7 @@ async function bootstrap() {
     onExport: () => {
       audio.unlock?.();
       history.exportJSON(captureSnapshot(), 'tiny-glade-scene.json');
-      hud?.showToast?.('Exported scene JSON');
+      hud?.showToast?.('Đã xuất cảnh thành tệp JSON');
     },
     onExportJSON: () => hudCallbacks.onExport(),
 
@@ -262,11 +265,11 @@ async function bootstrap() {
         if (snap) {
           commitHistoryStep();
           applySnapshot(snap);
-          hud?.showToast?.('Imported glade scene');
+          hud?.showToast?.('Đã nhập thiết kế thành công');
         }
       } catch (err) {
         console.error('[tiny-glade] Failed to import JSON:', err);
-        hud?.showToast?.('Could not read scene JSON file');
+        hud?.showToast?.('Không thể đọc tệp JSON thiết kế');
       }
     },
     onImportJSON: (file) => hudCallbacks.onImport(file),
@@ -298,7 +301,7 @@ async function bootstrap() {
       audio.playUiTick?.();
       pipeline.setQuality?.(tier);
       world.setQuality?.(tier);
-      hud?.showToast?.(`Graphics quality: ${tier}`);
+      hud?.showToast?.(`Chất lượng đồ họa: ${tier}`);
     },
 
     onWalkModeChange: (active) => {
@@ -309,7 +312,7 @@ async function bootstrap() {
       interaction?.setWalkMode?.(next);
       hud?.setWalkMode?.(next);
       if (next) {
-        hud?.showToast?.('Stroll Mode — WASD to walk, drag to look, Esc to exit');
+        hud?.showToast?.('Chế độ đi bộ — WASD để đi, kéo để nhìn, Esc để thoát');
       }
     },
     onToggleWalkMode: (active) => hudCallbacks.onWalkModeChange(active),
@@ -332,6 +335,7 @@ async function bootstrap() {
   };
 
   hud = new HUDController(hudRoot, hudCallbacks);
+  hud.setQuality?.(initialQuality);
 
   interaction = new InteractionController({
     scene: pipeline.scene,

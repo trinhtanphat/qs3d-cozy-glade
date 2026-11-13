@@ -8,10 +8,10 @@ import { buildQS3DIsland } from './QS3DIsland.js';
 
 export const PRESET_SCENES = [
   { id: 'qs3d-island', label: 'Đảo Xanh QS3D (Mặc định)' },
-  { id: 'lakeside-keep', label: 'Lakeside Keep (Default)' },
-  { id: 'cotswold-hamlet', label: 'Cotswold Brook Hamlet' },
-  { id: 'moonlit-abbey', label: 'Starlit Castle Ruins' },
-  { id: 'empty-meadow', label: 'Fresh Meadow' },
+  { id: 'lakeside-keep', label: 'Lâu Đài Bên Hồ' },
+  { id: 'cotswold-hamlet', label: 'Ngôi Làng Ven Suối' },
+  { id: 'moonlit-abbey', label: 'Tàn Tích Dưới Trăng' },
+  { id: 'empty-meadow', label: 'Đồng Cỏ Trong Lành' },
 ];
 
 function sculptHill(world, x, z, radius, targetHeight) {
@@ -430,7 +430,7 @@ function buildLakesideKeep({ world, arch, pipeline }) {
 
   return {
     id: 'lakeside-keep',
-    label: 'Lakeside Keep (Default)',
+    label: 'Lâu Đài Bên Hồ',
     ...envConfig,
     cameraTarget: { x: 0.0, y: 1.8, z: 3.5 },
   };
@@ -639,7 +639,7 @@ function buildCotswoldHamlet({ world, arch, pipeline }) {
 
   return {
     id: 'cotswold-hamlet',
-    label: 'Cotswold Brook Hamlet',
+    label: 'Ngôi Làng Ven Suối',
     ...envConfig,
     cameraTarget: { x: 0.0, y: 1.2, z: 1.5 },
   };
@@ -827,7 +827,7 @@ function buildMoonlitAbbey({ world, arch, pipeline }) {
 
   return {
     id: 'moonlit-abbey',
-    label: 'Starlit Castle Ruins',
+    label: 'Tàn Tích Dưới Trăng',
     ...envConfig,
     cameraTarget: { x: 0.0, y: 2.4, z: 2.5 },
   };
@@ -869,7 +869,7 @@ function buildEmptyMeadow({ world, arch, pipeline }) {
 
   return {
     id: 'empty-meadow',
-    label: 'Fresh Meadow',
+    label: 'Đồng Cỏ Trong Lành',
     ...envConfig,
     cameraTarget: { x: 0.0, y: 0.8, z: 0.0 },
   };
