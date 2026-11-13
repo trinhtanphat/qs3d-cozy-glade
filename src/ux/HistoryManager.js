@@ -20,6 +20,19 @@ const TYPED_ARRAY_CTORS = {
 const MAX_SCENE_IMPORT_BYTES = 16 * 1024 * 1024;
 const MAX_SCENE_IMPORT_DEPTH = 48;
 const MAX_SCENE_IMPORT_NODES = 300000;
+// Keep scene imports bounded to a number of objects the interactive
+// WebGL editor can realistically rebuild, not merely a byte-size cap.
+export const SCENE_ENTITY_LIMITS = Object.freeze({
+  buildings: 200,
+  walls: 400,
+  paths: 256,
+  clutter: 1200,
+  trees: 600,
+  bushes: 600,
+  flowers: 4000,
+  boulders: 600,
+  pathPoints: 512,
+});
 const DANGEROUS_JSON_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function isRecord(value) {
@@ -45,16 +58,45 @@ function validateSceneSnapshot(snapshot) {
     }
   }
 
+  for (const [key, limit] of Object.entries(SCENE_ENTITY_LIMITS)) {
+    if (key === 'pathPoints') continue;
+    const source = ['buildings', 'walls', 'paths', 'clutter'].includes(key)
+      ? snapshot.arch : snapshot.world.foliage;
+    const list = source?.[key];
+    if (list !== undefined) {
+      if (!Array.isArray(list) || list.length > limit) {
+        throw new Error('Scene entity count exceeds limit for ' + key + '.');
+      }
+    }
+  }
+  const terrainPaths = snapshot.world.terrain?.paths;
+  if (terrainPaths !== undefined &&
+      (!Array.isArray(terrainPaths) || terrainPaths.length > SCENE_ENTITY_LIMITS.paths)) {
+    throw new Error('Scene terrain paths exceed limit.');
+  }
+  for (const list of [snapshot.arch.walls, snapshot.arch.paths, terrainPaths]) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (!isRecord(item) || !Array.isArray(item.points) ||
+          item.points.length > SCENE_ENTITY_LIMITS.pathPoints) {
+        throw new Error('Scene path exceeds allowed geometry complexity.');
+      }
+    }
+  }
+
   // A bounded, iterative scan prevents deep recursion, huge scene trees,
   // prototype pollution keys and NaN/Infinity from reaching WebGL geometry.
-  const stack = [{ value: snapshot, depth: 0 }];
+  const stack = [{ value: snapshot, depth: 0, key: '' }];
   let visited = 0;
   while (stack.length) {
-    const { value, depth } = stack.pop();
+    const { value, depth, key } = stack.pop();
     if (++visited > MAX_SCENE_IMPORT_NODES || depth > MAX_SCENE_IMPORT_DEPTH) {
       throw new Error('Scene exceeds complexity or nesting limits.');
     }
-    if (typeof value === 'number' && !Number.isFinite(value)) {
+    // Random seeds are unsigned 32-bit values (up to 4294967295); do not
+    // confuse those with unbounded coordinates or geometry dimensions.
+    const validSeed = key === 'seed' && Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
+    if (typeof value === 'number' && (!Number.isFinite(value) || (Math.abs(value) > 1e7 && !validSeed))) {
       throw new Error('Scene contains a non-finite number.');
     }
     if (typeof value === 'string' && value.length > 2_000_000) {
@@ -70,13 +112,13 @@ function validateSceneSnapshot(snapshot) {
     }
     if (Array.isArray(value)) {
       if (value.length > 100000) throw new Error('Scene array is too large.');
-      for (const item of value) stack.push({ value: item, depth: depth + 1 });
+      for (const item of value) stack.push({ value: item, depth: depth + 1, key: '' });
       continue;
     }
     if (!isRecord(value)) throw new Error('Scene has an unsupported object type.');
     for (const key of Object.keys(value)) {
       if (DANGEROUS_JSON_KEYS.has(key)) throw new Error('Scene contains a forbidden key.');
-      stack.push({ value: value[key], depth: depth + 1 });
+      stack.push({ value: value[key], depth: depth + 1, key });
     }
   }
   return snapshot;
@@ -182,6 +224,7 @@ function jsonReviver(_key, value) {
     Array.isArray(value.data) &&
     TYPED_ARRAY_CTORS[value.__typedArray]
   ) {
+    if (value.data.length > 262144) throw new Error('Scene typed array is too large.');
     const Ctor = TYPED_ARRAY_CTORS[value.__typedArray];
     return new Ctor(value.data);
   }

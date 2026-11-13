@@ -76,3 +76,18 @@ A real production browser E2E discovered that at 1280px the clock bar overlapped
 4. Upload malformed JSON (`{"world":{}}`), verify rejection and no changes to current scene, zero page/console/network errors.
 Result: **PASS, exit code 0**, `errors:[]`.
 `npm run build` PASS, `npm test` **70/70 PASS**, `git diff --check` PASS.
+
+## 13 Nov 2026 — Low-end GPU hardware check and scene-import amplification audit
+
+**Physical GPU evidence:** Chrome headless ANGLE/Direct3D11 exposed Intel(R) UHD Graphics 620 on DESKTOP-PHA1S90 (not SwiftShader). At an emulated 390×844 viewport (DPR 1) on the production build: Balanced rendered roughly 14 FPS in the earlier baseline, Eco later reported 22 FPS and 45 ms/frame, 3000 grass instances, 125 draws and ~629,933 triangles. This is a 57% increase in observed FPS, but the viewport is emulated and other system load was present; it is not a claim about physical Android/iOS devices or a 30/60 FPS guarantee. A longer sequential hardware benchmark exceeded its timeout and did not produce complete results. Another Chrome QA profile was active on the GPU workstation; it was left untouched.
+
+**New QA fixes:**
+- Startup selects Eco for proven low-end Intel UHD Graphics 600/610/620/630 and legacy Intel HD 4xx/5xx/6xx strings when WEBGL_debug_renderer_info is available. Unidentified/discrete GPUs retain the default adaptive setting. No device information is transmitted. User's saved manual tier (localStorage) always wins and disables automatic overrides.
+- Import rejects excessive GPU scene geometry: max 200 buildings, 400 walls, 256 paths, 1200 clutter elements, 600 trees/bushes/boulders, 4000 flowers, 512 path/wall vertices. JSON size/depth/prototype-pollution protections remain.
+- A realistic exported production scene (including signed/unsigned 32-bit procedural seeds near 2.3 billion) is accepted. A first QA draft rejected legitimate large seeds; fixed by allowing unsigned 32-bit values for named seed fields while retaining numeric limits for other geometry parameters.
+- Staging end-to-end Chrome WebGL2: clicked real Save button, downloaded ~315 KB JSON, changed clock 13:15→18:00, imported JSON via real file picker, verified 13:15 restored; invalid JSON safely rejected without state mutation. errors=[] and exit code 0.
+- Node tests: 84/84 PASS, production HTTP contract tests preserved, build PASS, diff checks PASS.
+
+**Release policy:** only merge if production commit exactly matches expected and clean. Keep WIN11-181 Session 2, unrelated tunnel services, and GitHub Actions untouched. Backup changed production files with SHA-256 verification and retain rollback commit.
+
+**Unverified, explicitly not certified:** sustained FPS on physical Android/iOS/Safari, actual low-power Intel hardware FPS *after* the new startup-detection change, full visual identity to any original video game, arbitrary gameplay endurance and all possible devices.

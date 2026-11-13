@@ -30,3 +30,11 @@ export class AdaptiveQuality {
     return next;
   }
 }
+
+// Prefer a practical starter tier for explicitly identified legacy integrated
+// GPUs. The renderer string stays client-local and is never transmitted.
+export function recommendedQualityForRenderer(defaultQuality, rendererName = '') {
+  const name = typeof rendererName === 'string' ? rendererName : '';
+  const legacyIntel = /Intel(?:\(R\))?\s+(?:UHD\s+Graphics\s+6(?:0|1|2|3)0|HD\s+Graphics\s+[456]\d\d)\b/i;
+  return legacyIntel.test(name) ? 'eco' : defaultQuality;
+}

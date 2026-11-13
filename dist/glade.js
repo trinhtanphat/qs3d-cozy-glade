@@ -26206,6 +26206,11 @@ void main() {
       return next;
     }
   };
+  function recommendedQualityForRenderer(defaultQuality, rendererName = "") {
+    const name = typeof rendererName === "string" ? rendererName : "";
+    const legacyIntel = /Intel(?:\(R\))?\s+(?:UHD\s+Graphics\s+6(?:0|1|2|3)0|HD\s+Graphics\s+[456]\d\d)\b/i;
+    return legacyIntel.test(name) ? "eco" : defaultQuality;
+  }
 
   // src/arch/GeometryUtils.js
   var WALL_PALETTE_FALLBACK = {
@@ -36769,6 +36774,17 @@ void main() {
   var MAX_SCENE_IMPORT_BYTES = 16 * 1024 * 1024;
   var MAX_SCENE_IMPORT_DEPTH = 48;
   var MAX_SCENE_IMPORT_NODES = 3e5;
+  var SCENE_ENTITY_LIMITS = Object.freeze({
+    buildings: 200,
+    walls: 400,
+    paths: 256,
+    clutter: 1200,
+    trees: 600,
+    bushes: 600,
+    flowers: 4e3,
+    boulders: 600,
+    pathPoints: 512
+  });
   var DANGEROUS_JSON_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototype"]);
   function isRecord(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value) && !ArrayBuffer.isView(value);
@@ -36790,14 +36806,37 @@ void main() {
         throw new Error("Scene arch." + key + " must be an array.");
       }
     }
-    const stack = [{ value: snapshot, depth: 0 }];
+    for (const [key, limit] of Object.entries(SCENE_ENTITY_LIMITS)) {
+      if (key === "pathPoints") continue;
+      const source = ["buildings", "walls", "paths", "clutter"].includes(key) ? snapshot.arch : snapshot.world.foliage;
+      const list = source?.[key];
+      if (list !== void 0) {
+        if (!Array.isArray(list) || list.length > limit) {
+          throw new Error("Scene entity count exceeds limit for " + key + ".");
+        }
+      }
+    }
+    const terrainPaths = snapshot.world.terrain?.paths;
+    if (terrainPaths !== void 0 && (!Array.isArray(terrainPaths) || terrainPaths.length > SCENE_ENTITY_LIMITS.paths)) {
+      throw new Error("Scene terrain paths exceed limit.");
+    }
+    for (const list of [snapshot.arch.walls, snapshot.arch.paths, terrainPaths]) {
+      if (!Array.isArray(list)) continue;
+      for (const item of list) {
+        if (!isRecord(item) || !Array.isArray(item.points) || item.points.length > SCENE_ENTITY_LIMITS.pathPoints) {
+          throw new Error("Scene path exceeds allowed geometry complexity.");
+        }
+      }
+    }
+    const stack = [{ value: snapshot, depth: 0, key: "" }];
     let visited = 0;
     while (stack.length) {
-      const { value, depth } = stack.pop();
+      const { value, depth, key } = stack.pop();
       if (++visited > MAX_SCENE_IMPORT_NODES || depth > MAX_SCENE_IMPORT_DEPTH) {
         throw new Error("Scene exceeds complexity or nesting limits.");
       }
-      if (typeof value === "number" && !Number.isFinite(value)) {
+      const validSeed = key === "seed" && Number.isInteger(value) && value >= 0 && value <= 4294967295;
+      if (typeof value === "number" && (!Number.isFinite(value) || Math.abs(value) > 1e7 && !validSeed)) {
         throw new Error("Scene contains a non-finite number.");
       }
       if (typeof value === "string" && value.length > 2e6) {
@@ -36813,13 +36852,13 @@ void main() {
       }
       if (Array.isArray(value)) {
         if (value.length > 1e5) throw new Error("Scene array is too large.");
-        for (const item of value) stack.push({ value: item, depth: depth + 1 });
+        for (const item of value) stack.push({ value: item, depth: depth + 1, key: "" });
         continue;
       }
       if (!isRecord(value)) throw new Error("Scene has an unsupported object type.");
-      for (const key of Object.keys(value)) {
-        if (DANGEROUS_JSON_KEYS.has(key)) throw new Error("Scene contains a forbidden key.");
-        stack.push({ value: value[key], depth: depth + 1 });
+      for (const key2 of Object.keys(value)) {
+        if (DANGEROUS_JSON_KEYS.has(key2)) throw new Error("Scene contains a forbidden key.");
+        stack.push({ value: value[key2], depth: depth + 1, key: key2 });
       }
     }
     return snapshot;
@@ -36907,6 +36946,7 @@ void main() {
   }
   function jsonReviver(_key, value) {
     if (value && typeof value === "object" && typeof value.__typedArray === "string" && Array.isArray(value.data) && TYPED_ARRAY_CTORS[value.__typedArray]) {
+      if (value.data.length > 262144) throw new Error("Scene typed array is too large.");
       const Ctor = TYPED_ARRAY_CTORS[value.__typedArray];
       return new Ctor(value.data);
     }
@@ -41779,7 +41819,14 @@ void main() {
       setLoadingError("Thi\u1EBFu v\xF9ng hi\u1EC3n th\u1ECB 3D (#glade-canvas ho\u1EB7c #hud-root).");
       return;
     }
-    const initialQuality = window.matchMedia?.("(max-width: 760px) and (pointer: coarse)")?.matches ? "balanced" : "high";
+    const QUALITY_SETTING_KEY = "qs3d-glade-graphics-tier";
+    let selectedQuality = null;
+    try {
+      const saved = window.localStorage?.getItem(QUALITY_SETTING_KEY);
+      if (["eco", "balanced", "high", "ultra"].includes(saved)) selectedQuality = saved;
+    } catch {
+    }
+    let initialQuality = selectedQuality || (window.matchMedia?.("(max-width: 760px) and (pointer: coarse)")?.matches ? "balanced" : "high");
     let pipeline;
     try {
       pipeline = createRendererPipeline(canvas, {
@@ -41791,6 +41838,19 @@ void main() {
       console.error("[tiny-glade] Failed to initialize WebGL2 pipeline:", err);
       setLoadingError(`Kh\xF4ng th\u1EC3 kh\u1EDFi \u0111\u1ED9ng \u0111\u1ED3 h\u1ECDa WebGL2: ${err?.message || err}`);
       return;
+    }
+    if (!selectedQuality) {
+      try {
+        const gl = pipeline.renderer.getContext();
+        const info = gl.getExtension("WEBGL_debug_renderer_info");
+        const rendererName = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : "";
+        const recommended = recommendedQualityForRenderer(initialQuality, rendererName);
+        if (recommended !== initialQuality) {
+          pipeline.setQuality(recommended);
+          initialQuality = recommended;
+        }
+      } catch {
+      }
     }
     const audio = new AudioEngine();
     const history = new HistoryManager();
@@ -41927,6 +41987,7 @@ void main() {
       }
     };
     const adaptiveQuality = new AdaptiveQuality({ startTime: performance.now() });
+    if (selectedQuality) adaptiveQuality.manualOverride();
     const hudCallbacks = {
       presets: PRESET_SCENES,
       onUiSound: () => {
@@ -42002,6 +42063,10 @@ void main() {
       },
       onQualityChange: (tier) => {
         adaptiveQuality.manualOverride();
+        try {
+          window.localStorage?.setItem(QUALITY_SETTING_KEY, tier);
+        } catch {
+        }
         audio.playUiTick?.();
         pipeline.setQuality?.(tier);
         world.setQuality?.(tier);
