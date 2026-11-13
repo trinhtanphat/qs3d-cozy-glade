@@ -130,6 +130,7 @@ export class WorldManager {
   setQuality(tier) {
     const q = String(tier || 'ultra').toLowerCase();
     this.quality = ['eco', 'balanced', 'high', 'ultra'].includes(q) ? q : 'ultra';
+    this.terrain.setQuality(this.quality);
     this.foliage.setQuality(this.quality);
     this.wildlife.setQuality(this.quality);
   }

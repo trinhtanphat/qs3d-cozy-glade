@@ -32196,6 +32196,38 @@ void main() {
       this.geometry.setAttribute("normal", this.normAttr);
       this.geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
       this.geometry.setIndex(new BufferAttribute(indices, 1));
+      this._fullTerrainIndex = this.geometry.index;
+      const ecoStride = 2;
+      const ecoCells = Math.ceil(segs / ecoStride);
+      const ecoIndices = new Uint32Array(ecoCells * ecoCells * 6);
+      let e = 0;
+      for (let iz = 0; iz < segs; iz += ecoStride) {
+        for (let ix = 0; ix < segs; ix += ecoStride) {
+          const x1 = Math.min(ix + ecoStride, segs);
+          const z1 = Math.min(iz + ecoStride, segs);
+          const a = iz * N + ix;
+          const b = iz * N + x1;
+          const c = z1 * N + ix;
+          const d = z1 * N + x1;
+          if ((ix + iz) / ecoStride % 2 === 0) {
+            ecoIndices[e++] = a;
+            ecoIndices[e++] = c;
+            ecoIndices[e++] = b;
+            ecoIndices[e++] = b;
+            ecoIndices[e++] = c;
+            ecoIndices[e++] = d;
+          } else {
+            ecoIndices[e++] = a;
+            ecoIndices[e++] = c;
+            ecoIndices[e++] = d;
+            ecoIndices[e++] = a;
+            ecoIndices[e++] = d;
+            ecoIndices[e++] = b;
+          }
+        }
+      }
+      this._ecoTerrainIndex = new BufferAttribute(ecoIndices, 1);
+      this._terrainLod = "full";
       this.material = this._createTerrainMaterial();
       this.mesh = new Mesh(this.geometry, this.material);
       this.mesh.name = "TinyGladeTerrain";
@@ -33075,6 +33107,12 @@ void main() {
       if (envState.season && envState.season !== this.season) {
         this.setSeason(envState.season);
       }
+    }
+    setQuality(tier) {
+      const next = tier === "eco" ? "eco" : "full";
+      if (next === this._terrainLod) return;
+      this.geometry.setIndex(next === "eco" ? this._ecoTerrainIndex : this._fullTerrainIndex);
+      this._terrainLod = next;
     }
     serialize() {
       const count = this.heights.length;
@@ -35993,6 +36031,7 @@ void main() {
     setQuality(tier) {
       const q = String(tier || "ultra").toLowerCase();
       this.quality = ["eco", "balanced", "high", "ultra"].includes(q) ? q : "ultra";
+      this.terrain.setQuality(this.quality);
       this.foliage.setQuality(this.quality);
       this.wildlife.setQuality(this.quality);
     }

@@ -91,3 +91,13 @@ Result: **PASS, exit code 0**, `errors:[]`.
 **Release policy:** only merge if production commit exactly matches expected and clean. Keep WIN11-181 Session 2, unrelated tunnel services, and GitHub Actions untouched. Backup changed production files with SHA-256 verification and retain rollback commit.
 
 **Unverified, explicitly not certified:** sustained FPS on physical Android/iOS/Safari, actual low-power Intel hardware FPS *after* the new startup-detection change, full visual identity to any original video game, arbitrary gameplay endurance and all possible devices.
+
+## 13 Nov 2026 — Eco terrain topology LOD (isolated staging)
+
+- Renderer object audit showed the 256x256 terrain rasterized 130,050 triangles, water 51,200 and grass 45,000 in Eco; terrain was the highest-cost individual mesh.
+- Added a reversible 2-grid-step terrain index buffer for Eco: 32,768 triangles vs 130,050 in High/Ultra (74.8% fewer terrain faces). Retains all 65,536 editable heightfield vertices, normals, 256x256 terrain texture and original full-resolution index for instant reverse tier switching.
+- Unit test verifies index geometry, all indices in bounds, unchanged heights, repeated Eco/High/Ultra transitions and exact full topology restoration.
+- `npm test`: **85/85 PASS**; `npm run build`: PASS; `git diff --check`: PASS; `npm audit --omit=dev --audit-level=moderate`: found 0 vulnerabilities.
+- Isolated Chrome 390x844/WebGL2 staging rendered the island, bridge, roof, ocean and trees at Eco with ~531.8K scene triangles (previous Eco ~624.6K; draw calls still 125). No JS, page, console or network errors. Software-renderer FPS is not used for hardware performance claims.
+- Separate browser E2E: real export (~316 KB), modify clock 13:15->18:00, import and recover 13:15, reject malformed import safely; zero errors, PASS.
+- Remaining gate: hardware FPS of this *new* terrain LOD on actual Intel UHD 620, with exact branch code, is not yet verified.

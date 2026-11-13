@@ -381,6 +381,34 @@ export class TerrainSystem {
     this.geometry.setAttribute('normal', this.normAttr);
     this.geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     this.geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+    this._fullTerrainIndex = this.geometry.index;
+
+    // Eco LOD only changes the rasterized topology. Keep all 256x256
+    // vertex heights, normals, textures and sculpting precision untouched.
+    // Include the final grid edge so mesh corners remain continuous.
+    const ecoStride = 2;
+    const ecoCells = Math.ceil(segs / ecoStride);
+    const ecoIndices = new Uint32Array(ecoCells * ecoCells * 6);
+    let e = 0;
+    for (let iz = 0; iz < segs; iz += ecoStride) {
+      for (let ix = 0; ix < segs; ix += ecoStride) {
+        const x1 = Math.min(ix + ecoStride, segs);
+        const z1 = Math.min(iz + ecoStride, segs);
+        const a = iz * N + ix;
+        const b = iz * N + x1;
+        const c = z1 * N + ix;
+        const d = z1 * N + x1;
+        if (((ix + iz) / ecoStride) % 2 === 0) {
+          ecoIndices[e++] = a; ecoIndices[e++] = c; ecoIndices[e++] = b;
+          ecoIndices[e++] = b; ecoIndices[e++] = c; ecoIndices[e++] = d;
+        } else {
+          ecoIndices[e++] = a; ecoIndices[e++] = c; ecoIndices[e++] = d;
+          ecoIndices[e++] = a; ecoIndices[e++] = d; ecoIndices[e++] = b;
+        }
+      }
+    }
+    this._ecoTerrainIndex = new THREE.BufferAttribute(ecoIndices, 1);
+    this._terrainLod = 'full';
 
     this.material = this._createTerrainMaterial();
     this.mesh = new THREE.Mesh(this.geometry, this.material);
@@ -1413,6 +1441,13 @@ export class TerrainSystem {
     if (envState.season && envState.season !== this.season) {
       this.setSeason(envState.season);
     }
+  }
+
+  setQuality(tier) {
+    const next = tier === 'eco' ? 'eco' : 'full';
+    if (next === this._terrainLod) return;
+    this.geometry.setIndex(next === 'eco' ? this._ecoTerrainIndex : this._fullTerrainIndex);
+    this._terrainLod = next;
   }
 
   serialize() {
