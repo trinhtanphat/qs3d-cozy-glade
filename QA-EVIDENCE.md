@@ -127,3 +127,15 @@ The serialization path was refactored to expose `HistoryManager.serializeJSON(sn
 - Reproducible test: `npm ci`, `npm run build`, then `GAME_URL=http://127.0.0.1:5487/ npm run test:e2e` after starting the isolated QA origin. Windows Chrome default path is used; override `CHROME_BIN` if needed. Set `QA_RESULTS_DIR` to put logs outside Git checkout. No GitHub Actions used.
 
 Limitations explicitly not claimed: physical iOS/Android, Safari, all GPUs at 60 FPS, multi-hour uninterrupted rendering, and cloud/account synchronization.
+
+### 13/11/2026 — Reproducible E2E rerun and GPU caveat
+
+- `npm run test:e2e` from the actual Git working tree (Playwright Core v1.58.2, Chrome, isolated Win11-181 localhost :5487) **PASS exit 0** with `success:true`, `errorCount:0`:
+  - 13:15 → 18:45 auto-saved; browser reload restores 18:45.
+  - Empty Meadow + real House click adds 1 building; autosave stores the map and new building; browser reload restores exactly 1.
+  - Another house + real Undo/Redo: 2 → 1 → 2 buildings.
+  - Deliberately corrupt autosave in **fresh separate browser context**: app still boots with WebGL2 and detects invalid data.
+- An earlier rerun repeatedly reloaded WebGL in the same context and had a Chrome headless process close at the fourth reload on WIN11-181 (62 Chrome processes, ~2.4 GiB free RAM). The final reproducible QA script runs the corrupted-save case in a fresh context to avoid compounding software-renderer memory pressure.
+- A separate Chrome/ANGLE D3D11 attempt on Intel UHD 620 did **not** qualify as passing: WebGL context creation was blocked/lost by that browser at startup. No GPU FPS claim is made for this autosave feature. Existing previous hardware performance benchmarks are separately recorded in this file.
+- Automated repo checks: `npm run build` PASS; `npm test` **94/94 PASS**; `npm audit --audit-level=moderate` **0 vulnerabilities**; syntax check and `git diff --check` PASS.
+- CI uses no GitHub Actions; the browser test is reproducible locally via `npm run test:e2e` with `GAME_URL`, `QA_RESULTS_DIR` and optional `CHROME_BIN`.
