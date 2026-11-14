@@ -37178,6 +37178,10 @@ void main() {
   var SCENE_AUTOSAVE_KEY = "qs3d-cozy-glade:scene-autosave-v1";
   var AUTOSAVE_FORMAT = "qs3d-cozy-glade:autosave";
   var MAX_AUTOSAVE_LENGTH = 16 * 1024 * 1024;
+  var SAFE_PRESET_ID = /^[a-z][a-z0-9-]{1,63}$/;
+  function sceneSlotKey(presetId) {
+    return typeof presetId === "string" && SAFE_PRESET_ID.test(presetId) ? `${SCENE_AUTOSAVE_KEY}:preset:${presetId}` : null;
+  }
   var SceneAutosave = class {
     constructor({
       storage = null,
@@ -37219,6 +37223,41 @@ void main() {
         return null;
       }
     }
+    readPresetSlot(presetId) {
+      const key = sceneSlotKey(presetId);
+      if (!key || !this.storage) return null;
+      try {
+        const raw = this.storage.getItem(key);
+        if (!raw) return null;
+        if (raw.length > MAX_AUTOSAVE_LENGTH) throw new Error("Preset autosave too large");
+        const record = JSON.parse(raw);
+        if (record?.format !== AUTOSAVE_FORMAT || record.version !== 1 || record.presetId !== presetId || typeof record.sceneJSON !== "string" || record.sceneJSON.length > MAX_AUTOSAVE_LENGTH || !Number.isFinite(record.savedAt)) {
+          throw new Error("Preset autosave version or data invalid");
+        }
+        this.lastError = null;
+        return { sceneJSON: record.sceneJSON, presetId, savedAt: record.savedAt };
+      } catch (error) {
+        this.lastError = error;
+        return null;
+      }
+    }
+    cancelPending() {
+      if (this.timer !== null) this.clearTimer(this.timer);
+      this.timer = null;
+      this.pending = null;
+    }
+    discardPresetSlot(presetId) {
+      const key = sceneSlotKey(presetId);
+      if (!key || !this.storage) return false;
+      try {
+        this.storage.removeItem(key);
+        this.lastError = null;
+        return true;
+      } catch (error) {
+        this.lastError = error;
+        return false;
+      }
+    }
     schedule(capture, presetId = "qs3d-island") {
       if (!this.storage || typeof capture !== "function") return false;
       this.pending = { capture, presetId };
@@ -37250,6 +37289,8 @@ void main() {
         const text = JSON.stringify(record);
         if (text.length > MAX_AUTOSAVE_LENGTH) throw new Error("Autosave exceeds size limit");
         this.storage.setItem(this.key, text);
+        const slot = sceneSlotKey(presetId);
+        if (slot) this.storage.setItem(slot, text);
         this.lastSavedAt = savedAt;
         this.lastError = null;
         return true;
@@ -38282,6 +38323,7 @@ void main() {
     { id: "night", label: "Ban \u0111\xEAm", hours: 21.6 }
   ];
   var ICONS = {
+    reset: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11a8.5 8.5 0 1 1 2.4 6"/><path d="M3.5 4.5V11H10"/><path d="M12 7v5l3.5 2.5"/></svg>`,
     undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H12"/></svg>`,
     redo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H12"/></svg>`,
     export: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>`,
@@ -38426,6 +38468,11 @@ void main() {
         this._cbPreset(id);
       });
       presetWrap.appendChild(presetSelect);
+      const resetPresetBtn = this._makeIconBtn(ICONS.reset, "\u0110\u1EB7t l\u1EA1i", "\u0110\u1EB7t l\u1EA1i b\u1EA3n \u0111\u1ED3 hi\u1EC7n t\u1EA1i (c\xF3 x\xE1c nh\u1EADn)", () => {
+        this._tick();
+        this.callbacks.onResetPreset?.();
+      });
+      resetPresetBtn.dataset.action = "reset-preset";
       const divider1 = document.createElement("span");
       divider1.className = "tg-divider";
       const undoBtn = this._makeIconBtn(ICONS.undo, "Ho\xE0n t\xE1c", "Ho\xE0n t\xE1c (Ctrl+Z / Z)", () => {
@@ -38465,7 +38512,7 @@ void main() {
         fileInput.click();
       });
       importBtn.dataset.action = "import";
-      topLeft.append(presetWrap, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, fileInput);
+      topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, fileInput);
       const topRightWrap = document.createElement("div");
       topRightWrap.className = "tg-top-right-wrap";
       const topRight = document.createElement("div");
@@ -42112,6 +42159,26 @@ void main() {
       resetHistoryWithCurrentState();
       scheduleAutosave();
     };
+    const restoreSavedPreset = (presetId) => {
+      const saved = sceneAutosave?.readPresetSlot(presetId);
+      if (!saved) {
+        if (sceneAutosave?.lastError) {
+          sceneAutosave.cancelPending();
+          hud?.showToast?.("B\u1EA3n l\u01B0u c\u1EE7a b\u1EA3n \u0111\u1ED3 n\xE0y b\u1ECB l\u1ED7i. \u0110\xE3 m\u1EDF b\u1EA3n m\u1EABu an to\xE0n.", 4500);
+        }
+        return;
+      }
+      void history.importJSON(saved.sceneJSON).then((snapshot) => {
+        if (currentPresetId !== presetId) return;
+        applySnapshot(snapshot);
+        resetHistoryWithCurrentState();
+        hud?.showToast?.("\u0110\xE3 kh\xF4i ph\u1EE5c b\u1EA3n \u0111\u1ED3 \u0111\xE3 x\xE2y tr\xEAn thi\u1EBFt b\u1ECB n\xE0y.", 2800);
+      }).catch((error) => {
+        sceneAutosave?.cancelPending();
+        console.warn("[qs3d] Rejected invalid saved preset:", error);
+        hud?.showToast?.("B\u1EA3n l\u01B0u c\u1EE7a b\u1EA3n \u0111\u1ED3 n\xE0y kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c. H\xE3y d\xF9ng t\u1EC7p JSON d\u1EF1 ph\xF2ng.", 4200);
+      });
+    };
     const handleUndo = () => {
       const current = captureSnapshot();
       const prev = history.undo(current);
@@ -42165,7 +42232,17 @@ void main() {
       },
       onPresetChange: (presetId) => {
         audio.unlock?.();
+        if (presetId === currentPresetId) return;
+        sceneAutosave?.flush();
         loadPreset(presetId, false);
+        restoreSavedPreset(presetId);
+      },
+      onResetPreset: () => {
+        const label = PRESET_SCENES.find((p) => p.id === currentPresetId)?.label || currentPresetId;
+        if (!window.confirm(`\u0110\u1EB7t l\u1EA1i b\u1EA3n \u0111\u1ED3 \u201C${label}\u201D? C\xF4ng tr\xECnh \u0111\xE3 x\xE2y tr\xEAn b\u1EA3n \u0111\u1ED3 n\xE0y s\u1EBD b\u1ECB x\xF3a. H\xE3y d\xF9ng L\u01B0u \u0111\u1EC3 t\u1EA3i JSON d\u1EF1 ph\xF2ng tr\u01B0\u1EDBc khi \u0111\u1EB7t l\u1EA1i.`)) return;
+        sceneAutosave?.discardPresetSlot(currentPresetId);
+        loadPreset(currentPresetId, true);
+        hud?.showToast?.("\u0110\xE3 \u0111\u1EB7t l\u1EA1i b\u1EA3n \u0111\u1ED3 hi\u1EC7n t\u1EA1i. C\xE1c b\u1EA3n \u0111\u1ED3 kh\xE1c v\u1EABn gi\u1EEF nguy\xEAn.", 3600);
       },
       onSelectPreset: (presetId) => hudCallbacks.onPresetChange(presetId),
       onUndo: handleUndo,

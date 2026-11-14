@@ -218,6 +218,28 @@ async function bootstrap() {
     scheduleAutosave();
   };
 
+  const restoreSavedPreset = (presetId) => {
+    const saved = sceneAutosave?.readPresetSlot(presetId);
+    if (!saved) {
+      if (sceneAutosave?.lastError) {
+        sceneAutosave.cancelPending(); // Preserve damaged data for manual recovery.
+        hud?.showToast?.('Bản lưu của bản đồ này bị lỗi. Đã mở bản mẫu an toàn.', 4500);
+      }
+      return;
+    }
+    void history.importJSON(saved.sceneJSON).then((snapshot) => {
+      // A later scene switch must never apply an old asynchronous restore.
+      if (currentPresetId !== presetId) return;
+      applySnapshot(snapshot);
+      resetHistoryWithCurrentState();
+      hud?.showToast?.('Đã khôi phục bản đồ đã xây trên thiết bị này.', 2800);
+    }).catch((error) => {
+      sceneAutosave?.cancelPending(); // Do not silently replace a broken backup.
+      console.warn('[qs3d] Rejected invalid saved preset:', error);
+      hud?.showToast?.('Bản lưu của bản đồ này không đọc được. Hãy dùng tệp JSON dự phòng.', 4200);
+    });
+  };
+
   const handleUndo = () => {
     const current = captureSnapshot();
     const prev = history.undo(current);
@@ -279,7 +301,18 @@ async function bootstrap() {
 
     onPresetChange: (presetId) => {
       audio.unlock?.();
+      if (presetId === currentPresetId) return;
+      // Persist the map being left before constructing another template.
+      sceneAutosave?.flush();
       loadPreset(presetId, false);
+      restoreSavedPreset(presetId);
+    },
+    onResetPreset: () => {
+      const label = PRESET_SCENES.find(p => p.id === currentPresetId)?.label || currentPresetId;
+      if (!window.confirm(`Đặt lại bản đồ “${label}”? Công trình đã xây trên bản đồ này sẽ bị xóa. Hãy dùng Lưu để tải JSON dự phòng trước khi đặt lại.`)) return;
+      sceneAutosave?.discardPresetSlot(currentPresetId);
+      loadPreset(currentPresetId, true);
+      hud?.showToast?.('Đã đặt lại bản đồ hiện tại. Các bản đồ khác vẫn giữ nguyên.', 3600);
     },
     onSelectPreset: (presetId) => hudCallbacks.onPresetChange(presetId),
 

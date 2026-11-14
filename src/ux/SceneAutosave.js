@@ -6,6 +6,12 @@
 export const SCENE_AUTOSAVE_KEY = 'qs3d-cozy-glade:scene-autosave-v1';
 const AUTOSAVE_FORMAT = 'qs3d-cozy-glade:autosave';
 const MAX_AUTOSAVE_LENGTH = 16 * 1024 * 1024;
+const SAFE_PRESET_ID = /^[a-z][a-z0-9-]{1,63}$/;
+
+export function sceneSlotKey(presetId) {
+  return typeof presetId === 'string' && SAFE_PRESET_ID.test(presetId)
+    ? `${SCENE_AUTOSAVE_KEY}:preset:${presetId}` : null;
+}
 
 export class SceneAutosave {
   constructor({ storage = null, history, key = SCENE_AUTOSAVE_KEY,
@@ -44,6 +50,40 @@ export class SceneAutosave {
     }
   }
 
+  readPresetSlot(presetId) {
+    const key = sceneSlotKey(presetId);
+    if (!key || !this.storage) return null;
+    try {
+      const raw = this.storage.getItem(key);
+      if (!raw) return null;
+      if (raw.length > MAX_AUTOSAVE_LENGTH) throw new Error('Preset autosave too large');
+      const record = JSON.parse(raw);
+      if (record?.format !== AUTOSAVE_FORMAT || record.version !== 1 ||
+        record.presetId !== presetId || typeof record.sceneJSON !== 'string' ||
+        record.sceneJSON.length > MAX_AUTOSAVE_LENGTH || !Number.isFinite(record.savedAt)) {
+        throw new Error('Preset autosave version or data invalid');
+      }
+      this.lastError = null;
+      return { sceneJSON: record.sceneJSON, presetId, savedAt: record.savedAt };
+    } catch (error) {
+      this.lastError = error;
+      return null;
+    }
+  }
+
+  cancelPending() {
+    if (this.timer !== null) this.clearTimer(this.timer);
+    this.timer = null;
+    this.pending = null;
+  }
+
+  discardPresetSlot(presetId) {
+    const key = sceneSlotKey(presetId);
+    if (!key || !this.storage) return false;
+    try { this.storage.removeItem(key); this.lastError = null; return true; }
+    catch (error) { this.lastError = error; return false; }
+  }
+
   schedule(capture, presetId = 'qs3d-island') {
     if (!this.storage || typeof capture !== 'function') return false;
     this.pending = { capture, presetId };
@@ -70,7 +110,10 @@ export class SceneAutosave {
         presetId: String(presetId), sceneJSON };
       const text = JSON.stringify(record);
       if (text.length > MAX_AUTOSAVE_LENGTH) throw new Error('Autosave exceeds size limit');
+      // Legacy latest-scene key remains for backward-compatible boot restore.
       this.storage.setItem(this.key, text);
+      const slot = sceneSlotKey(presetId);
+      if (slot) this.storage.setItem(slot, text);
       this.lastSavedAt = savedAt;
       this.lastError = null;
       return true;
