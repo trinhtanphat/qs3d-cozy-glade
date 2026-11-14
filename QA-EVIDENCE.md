@@ -148,3 +148,28 @@ Limitations explicitly not claimed: physical iOS/Android, Safari, all GPUs at 60
 - Two `/cdn-cgi/rum` requests returned `net::ERR_ABORTED` during navigation; recorded as `analyticsAborts:2` and excluded from *game network* failures by precise URL+error matching only. Other failed requests remain test failures.
 - Public E2E record: `C:\ProgramData\QS3D\GladeDemo\pr9-public-e2e\qa-autosave-gameplay.json`.
 - Same game code; this release contains ONLY reproducible QA improvements. The original implementation's 94/94 unit tests and real browser save/restore are separately validated.
+
+## 14/11/2026 — Independent saved scenes for each map (data-loss prevention)
+
+Previous v1 autosave tracked only the last selected scene. Selecting a different preset and returning would lose structures made on the first map. Fixed by writing both the backward-compatible latest-scene storage key and a separate namespaced saved-scene key for every preset, preserving user creations across map switches. The first read on startup still honors existing version-1 autosaves, which are migrated when saved again.
+
+- Save current map synchronously before switching to another map; restore the selected map's saved architecture, heightfield, weather and time if present, then establish a fresh per-map undo baseline.
+- Avoid applying stale asynchronous scene data when a user switches quickly between presets.
+- New **Đặt lại** control next to map selector asks for confirmation. Cancel leaves all data; confirm resets *only the active map*. Other map slots are not touched.
+- If a map's checkpoint is damaged, don't silently replace the raw damaged record with a default scene. User can still import their portable JSON export.
+- Per-slot storage keys validate IDs (no traversal or prototype names); invalid or unsupported records fail safely. Existing Export/Import JSON and manual graphics tier preferences remain unchanged.
+- Guide updated in Vietnamese with saving and reset behavior.
+
+**WIN11-181 QA and testing:**
+- `npm test` **99/99 PASS**, `npm run build` PASS, `git diff --check` PASS.
+- `npm run test:e2e:slots` on isolated localhost port 5487 using Chromium/SwiftShader and real UI pointer events: exit code **0**, `success: true`, `errorCount: 0`.
+- Live UI E2E actions:
+  1. Save island time 09:15, island buildings=1.
+  2. Switch to Empty Meadow, build a house by real canvas click: count 0→1 and own slot written.
+  3. Switch back to island: time 09:15 and island buildings=1 restored.
+  4. Switch back to meadow: new house still present (count=1).
+  5. Click Reset and dismiss confirm: house remains.
+  6. Click Reset and accept: only meadow cleared (count=0); island 09:15 backup untouched.
+  7. Reload browser: meadow stays reset and selected; switch back to island: 09:15 and one original house still present.
+- Local QA evidence `C:\ProgramData\QS3D\GladeDemo\pr10-perpreset\qa-multislot.json`.
+- Existing autosave E2E, JSON transfer, HTTP security checks and other production services remain intact. This does not imply cross-device cloud synchronization or universal physical mobile compatibility.

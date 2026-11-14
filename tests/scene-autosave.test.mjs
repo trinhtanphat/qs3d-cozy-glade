@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SceneAutosave, SCENE_AUTOSAVE_KEY } from '../src/ux/SceneAutosave.js';
+import { SceneAutosave, SCENE_AUTOSAVE_KEY, sceneSlotKey } from '../src/ux/SceneAutosave.js';
 import { HistoryManager } from '../src/ux/HistoryManager.js';
 
 function makeStorage(){
@@ -105,4 +105,57 @@ test('pure serializeJSON does not trigger file export or browser download',async
  assert.match(text,/"format": "tiny-glade-scene"/);
  const scene=await history.importJSON(text);
  assert.equal(scene.arch.buildings[0].id,'cottage-1');
+});
+
+// Every scene has a separate checkpoint; selecting another preset must not
+// overwrite the buildings made on the previous map.
+test('per-preset scene slots preserve independent buildings and the legacy current save',async()=>{
+ const store=makeStorage(),s=makeManager(store);
+ const island=makeScene(12);island.arch.buildings=[{id:'island-home',seed:5}];
+ const meadow=makeScene(18);meadow.arch.buildings=[{id:'meadow-home',seed:8}];
+ s.schedule(()=>island,'qs3d-island');assert.equal(s.flush(),true);
+ s.schedule(()=>meadow,'empty-meadow');assert.equal(s.flush(),true);
+ const history=new HistoryManager();
+ const gotIsland=await history.importJSON(s.readPresetSlot('qs3d-island').sceneJSON);
+ const gotMeadow=await history.importJSON(s.readPresetSlot('empty-meadow').sceneJSON);
+ assert.equal(gotIsland.arch.buildings[0].id,'island-home');
+ assert.equal(gotMeadow.arch.buildings[0].id,'meadow-home');
+ assert.equal(s.read().presetId,'empty-meadow','legacy key tracks latest map');
+ assert.equal(store.map.size,3,'global plus two separate map keys');
+});
+test('new slot keys reject invalid identifiers and pollution strings',()=>{
+ assert.ok(sceneSlotKey('qs3d-island')?.includes(':preset:qs3d-island'));
+ for(const id of ['','../..','__proto__',' constructor ','a'.repeat(70),42,null]){
+  assert.equal(sceneSlotKey(id),null);
+ }
+});
+test('discarding one saved map does not destroy other slots or latest backup',()=>{
+ const store=makeStorage(),s=makeManager(store);
+ s.schedule(()=>makeScene(9),'qs3d-island');s.flush();
+ s.schedule(()=>makeScene(19),'empty-meadow');s.flush();
+ assert.equal(s.discardPresetSlot('qs3d-island'),true);
+ assert.equal(s.readPresetSlot('qs3d-island'),null);
+ assert.ok(s.readPresetSlot('empty-meadow'));
+ assert.equal(s.read().presetId,'empty-meadow');
+});
+test('damaged preset slot remains recoverable and pending default is canceled',()=>{
+ const store=makeStorage(),s=makeManager(store);
+ const key=sceneSlotKey('empty-meadow');store.setItem(key,'BROKEN DATA');
+ assert.equal(s.readPresetSlot('empty-meadow'),null);
+ assert.ok(s.lastError);
+ s.schedule(()=>makeScene(),'empty-meadow');s.cancelPending();
+ assert.equal(s.flush(),false);
+ assert.equal(store.getItem(key),'BROKEN DATA','malformed slot must remain intact');
+});
+test('old version-1 single autosave stays readable after enabling map slots',async()=>{
+ const store=makeStorage(),s=makeManager(store);
+ const oldRecord={format:'qs3d-cozy-glade:autosave',version:1,savedAt:123456789,
+  presetId:'qs3d-island',sceneJSON:s.history.serializeJSON(makeScene(10))};
+ store.setItem(SCENE_AUTOSAVE_KEY,JSON.stringify(oldRecord));
+ assert.equal(s.read().presetId,'qs3d-island');
+ assert.equal(s.readPresetSlot('qs3d-island'),null);
+ const restored=await s.history.importJSON(s.read().sceneJSON);
+ assert.equal(restored.env.timeOfDay,10);
+ s.schedule(()=>restored,'qs3d-island');s.flush();
+ assert.ok(s.readPresetSlot('qs3d-island'),'legacy checkpoint migrates to per-map slot');
 });

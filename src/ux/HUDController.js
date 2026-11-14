@@ -134,6 +134,7 @@ const TIME_PRESETS = [
 ];
 
 const ICONS = {
+  reset: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11a8.5 8.5 0 1 1 2.4 6"/><path d="M3.5 4.5V11H10"/><path d="M12 7v5l3.5 2.5"/></svg>`,
   undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H12"/></svg>`,
   redo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H12"/></svg>`,
   export: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>`,
@@ -305,6 +306,12 @@ export class HUDController {
     });
     presetWrap.appendChild(presetSelect);
 
+    const resetPresetBtn = this._makeIconBtn(ICONS.reset, 'Đặt lại', 'Đặt lại bản đồ hiện tại (có xác nhận)', () => {
+      this._tick();
+      this.callbacks.onResetPreset?.();
+    });
+    resetPresetBtn.dataset.action = 'reset-preset';
+
     const divider1 = document.createElement('span');
     divider1.className = 'tg-divider';
 
@@ -351,7 +358,7 @@ export class HUDController {
     });
     importBtn.dataset.action = 'import';
 
-    topLeft.append(presetWrap, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, fileInput);
+    topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, fileInput);
 
     // =========================================================================
     // 2. TOP-RIGHT ATMOSPHERE, CAMERA & QUALITY BAR
