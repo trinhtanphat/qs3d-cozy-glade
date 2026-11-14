@@ -76,6 +76,16 @@ test('Windows PowerShell inspector is read only, bounded, and checks full eviden
   assert.equal(result.safe,true);
 });
 
+test('PowerShell event collection fails closed on query errors rather than reporting zero', () => {
+  assert.match(WINDOWS_QUERY, /Get-WinEvent -FilterHashtable[^\n]*-ErrorAction Stop/);
+  assert.match(WINDOWS_QUERY, /NoMatchingEventsFound/);
+  assert.match(WINDOWS_QUERY, /^\s*throw\s*$/m);
+  assert.doesNotMatch(WINDOWS_QUERY, /-ErrorAction SilentlyContinue/);
+  for (const id of [41, 6008, 17]) {
+    assert.ok(WINDOWS_QUERY.includes('Get-WindowEvents ' + id + ' '));
+  }
+});
+
 test('inspector rejects unreachable platform and shell/event-log errors', () => {
   assert.equal(inspectWindowsHost({platform:'linux'}).safe,false);
   const result = inspectWindowsHost({
