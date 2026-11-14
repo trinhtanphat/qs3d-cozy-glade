@@ -1035,3 +1035,45 @@
     padding: 3px 7px;
   }
 }
+#loading-overlay #graphics-retry,
+#loading-overlay #graphics-backup {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 228, 209, .52);
+  padding: 10px 18px;
+  margin-top: 4px;
+  background: #e8d8ba;
+  color: #263631;
+  cursor: pointer;
+  min-height: 42px;
+  pointer-events: auto;
+}
+#loading-overlay #graphics-backup {
+  background: transparent;
+  color: #f2e7d5;
+}
+#loading-overlay #graphics-retry:hover {
+  background: #f2e5ca;
+}
+#loading-overlay #graphics-backup:hover {
+  background: rgba(255, 255, 255, .1);
+}
+#loading-overlay button:focus-visible {
+  outline: 3px solid #a6d9b6;
+  outline-offset: 3px;
+}
+#loading-overlay button[hidden] {
+  display: none !important;
+}
+@media (max-width: 460px) {
+  #loading-overlay #loading-status {
+    padding: 0 16px;
+  }
+  #loading-overlay #graphics-retry,
+  #loading-overlay #graphics-backup {
+    max-width: calc(100vw - 36px);
+    font-size: 13px;
+  }
+}
