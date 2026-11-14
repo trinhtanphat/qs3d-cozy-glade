@@ -238,3 +238,42 @@ Evidence:
 - QA JSON evidence: C:\ProgramData\QS3D\GladeDemo\pr13-autosave-qa\autosave-status-e2e.json.
 - Isolated QA Node process exited, shared CDP Chrome survived; Session 2, other projects, tunnels were not touched.
 - Secondary hardware check: DESKTOP-PHA1S90 Intel UHD Graphics 620 (driver 31.0.101.2141) Chrome 390x844 loaded production HTTP 200 but failed to reach the game-ready sentinel within 65 seconds (existing mini-gpu script exit code 1). This hardware result is **NOT PASS**; no reboot/network reset or changes to the Intel machine were made. Physical iOS/Android and longer endurance are not certified.
+
+## 14/11/2026 — GPU hardware acceptance recovered; issue #14 closed
+
+Issue https://github.com/trinhtanphat/qs3d-cozy-glade/issues/14 had logged one public Intel UHD 620 / D3D11 game-ready timeout (HTTP 200 but loading overlay did not clear in the earlier 65-second attempt). Follow-up remote access to PHA was recovered safely without reboot, Wi-Fi reset, tunnel modifications or closing browser tabs.
+
+Two subsequent **independent real hardware QA** runs on DESKTOP-PHA1S90 against https://glade.qs3d.site/ passed, both exited 0:
+1. Bounded diagnostic derived from the existing hardware script: actual WebGL2 context, game initialized, loading overlay class is-hidden, Intel UHD Graphics 620 ANGLE Direct3D11 driver path, 390x844 viewport (internal canvas 331x717 with DPR 0.85), 36 FPS, Eco preset, 125 draw calls, 531803 triangles and 3000 grass instances.
+2. Completely unmodified prior mini-gpu.cjs: actual Intel UHD 620 ANGLE Direct3D11 renderer, WebGL2 ready, 34 FPS before / 37 FPS after Eco activation, 125 draw calls, about 531547 triangles, exit 0.
+
+Archived JSON proof copies on PHA:
+- C:\ProgramData\QS3D\GladeGPUQA\intel-uhd620-proof-20261114-run1.json — SHA256 87BDB777B89A46AC26BB3890ABD2122DD100F2203ECEEFF6ECD0B07A50135943
+- C:\ProgramData\QS3D\GladeGPUQA\intel-uhd620-proof-20261114-run2.json — SHA256 0D3A7CB879F422ECB3E522053E92B4300837DE1BFA2307604EFCA61609E19EC1
+
+A new portable **local-only** hardware smoke script tests/e2e/hardware-gpu-smoke.cjs and HOWTO tests/e2e/HARDWARE-GPU-QA.md were added for future reproducibility (no GitHub Actions). The script verifies WebGL2, non-software hardware renderer, actual scene draw calls and triangle geometry, Eco graphics preset and minimum FPS across 1–3 bounded hardware runs, recording diagnostic JSON for future failures.
+
+Acceptance: Intel UHD 620 / ANGLE D3D11 Eco **hardware smoke recovered PASS, 2/2**. Still not certified: physical iPhone/Android hardware, every possible GPU and multi-hour load endurance.
+
+### 14/11/2026 — Correction: reproducibility exposed aggressive Chrome-flag instability
+
+After the two passing historical hardware smoke runs above, a new reproducible hardware harness with --ignore-gpu-blocklist and --disable-software-rasterizer produced a mixed outcome on the same Intel UHD 620 / D3D11 device: **1/2**. The failed run received HTTP 200 but THREE.WebGLRenderer could not create a WebGL2 context because Chromium reported "Web page caused context loss and was blocked"; the second run rendered successfully at 34 FPS. This result reopened GitHub issue #14, overturning the earlier broad claim that the timeout was fully resolved.
+
+An A/B variant with conservative Chrome flags (still requiring exact Intel D3D11 hardware identity, explicitly rejecting software rendering) subsequently **PASS 2/2** at 17 FPS and 23 FPS. The repository GPU smoke harness was updated to use those conservative flags and to stop promptly when the game displays an initialization error. Evidence on PHA:
+- Aggressive: C:\ProgramData\QS3D\GladeGPUQA\pr15-intel-repeat\gpu-hardware-smoke.json — 1/2 PASS, overall FAIL.
+- Conservative: C:\ProgramData\QS3D\GladeGPUQA\pr15-safe-flags\gpu-hardware-smoke.json — 2/2 PASS, overall PASS.
+
+This is an operational correction to GPU QA launch flags, not a release of new gameplay code. Independent repeat on the final committed script must be checked before claiming that exact revision PASS. Do not claim universal GPU/physical-phone or long-run 100% certification.
+
+### Final checked-in harness acceptance — 14 November 2026
+
+The canonical conservative-flags script at Git commit cb810cf94835c0dd6d76d81568a25b97fdd5abed was downloaded verbatim to DESKTOP-PHA1S90, and the SHA-256 matched its checked-in counterpart: E079C0ED139A0E91E7D52DED113F480E36E6D6372A7DCFC2B5752A648CCDC6FE.
+
+Three consecutive hardware checks against https://glade.qs3d.site/ then exited 0 with **GPU_HARDWARE_ACCEPTANCE=PASS RUNS=3**. All three used real Intel UHD Graphics 620 (ANGLE Direct3D11) WebGL2 rather than SwiftShader, loading overlay hidden and actual Eco scene rendering:
+- Run 1: 31 FPS, 125 draw calls, 530675 triangles; no page or network errors.
+- Run 2: 31 FPS, 125 draw calls, 529307 triangles; no page or network errors.
+- Run 3: 34 FPS, 125 draw calls, 529867 triangles; no page or network errors.
+
+Local artifact: C:\ProgramData\QS3D\GladeGPUQA\pr15-final-3run\gpu-hardware-smoke.json, SHA-256 **F486788188093C30A9A458BB263F3B72B04BAAE85904A65CB8527FCFEFAADEBA**. The Intel machine was not rebooted; its boot time remained 14 Nov 2026 14:20:27, with about 3.1 GiB RAM available after completion. The earlier conservative-flags A/B run also passed 2/2, for **5/5 consecutive conservative-flags hardware successes** across those two batches.
+
+Acceptance is limited to Intel UHD 620, Chrome 157 / ANGLE D3D11, Eco preset and 390x844 emulated mobile viewport. Stress runs using aggressive GPU overrides can still trigger Chromium's context-blocking guard; don't use those overrides as the default acceptance profile. This does not prove every real mobile GPU or many-hour operational endurance.
