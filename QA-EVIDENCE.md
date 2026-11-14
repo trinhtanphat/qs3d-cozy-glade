@@ -173,3 +173,21 @@ Previous v1 autosave tracked only the last selected scene. Selecting a different
   7. Reload browser: meadow stays reset and selected; switch back to island: 09:15 and one original house still present.
 - Local QA evidence `C:\ProgramData\QS3D\GladeDemo\pr10-perpreset\qa-multislot.json`.
 - Existing autosave E2E, JSON transfer, HTTP security checks and other production services remain intact. This does not imply cross-device cloud synchronization or universal physical mobile compatibility.
+
+## 14/11/2026 — Quota-safe map switching and crash-consistent recovery
+
+Observed risk in the existing code: when localStorage quota/permissions failed, `SceneAutosave.flush()` silently cleared its pending snapshot, and map switching proceeded unconditionally; user's newly built structures could vanish. A second risk: updating the latest-scene pointer before the per-map slot could leave the latest pointer referencing a scene that did not actually persist.
+
+**Fixes**:
+- Per-map record is written **before** updating the legacy latest-scene record. If either write fails, the in-memory pending checkpoint is retained for retry and the error is surfaced rather than being hidden.
+- Scene selection is prevented on a failed flush until the user explicitly acknowledges the data-loss risk; cancelling restores the map selector and leaves the buildings/editable scene untouched. Users are instructed to Export JSON as a portable backup.
+- Even when the browser denies storage entirely, a pending in-memory change is kept long enough to warn before switching.
+- Startup chooses the **newest valid timestamped checkpoint** among the legacy latest-scene key and known per-map slots. This recovers a saved newer slot if storage quota interrupted the legacy latest-pointer update. Old v1 saves remain supported.
+- Stale asynchronous preset-restore failures are prevented from cancelling the current map's save by checking a scene load generation counter.
+- A healthy map slot absent in storage clears stale errors from an unrelated quota failure, preventing false corruption warnings.
+- A separate pure preset switch guard exposes the precise accept/cancel behavior for deterministic testing.
+
+**Local WIN11-181 QA**: `npm test` **111/111 PASS** (new quota-denial, atomic-pointer-order, retry, corrupt-slot, newer-slot recovery, guard confirmation tests); `npm run build` PASS, `git diff --check` PASS.
+- Reproducible browser scenario included as `npm run test:e2e:quota` under `tests/e2e/storage-quota-gameplay.mjs`, with actual mouse-house placement, artificial quota denial, confirmation cancellation and restoration test.
+- **Browser E2E not certified in this turn.** Existing headless Chrome launch on WIN11-181 exited unexpectedly (resource/session limits), and attaching Playwright via CDP closed the test context during navigation. Direct Private Commander browser navigation to staging worked but page text evaluation timed out; this automation's tab was restored to `https://example.com/`. DESKTOP-PHA1S90 remained disconnected. This is an explicit QA coverage gap, not a gameplay PASS.
+- No GitHub Actions used; no changes to Session 2, unrelated QS3D services or production tunnel during development.

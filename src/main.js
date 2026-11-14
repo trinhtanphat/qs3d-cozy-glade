@@ -5,6 +5,7 @@ import { WorldManager } from './world/WorldManager.js';
 import { AudioEngine } from './ux/AudioEngine.js';
 import { HistoryManager } from './ux/HistoryManager.js';
 import { SceneAutosave } from './ux/SceneAutosave.js';
+import { maySwitchPreset } from './ux/PresetSwitchGuard.js';
 import { PRESET_SCENES, buildPresetScene } from './ux/PresetScenes.js';
 import { HUDController } from './ux/HUDController.js';
 import { CameraController } from './game/CameraController.js';
@@ -137,6 +138,7 @@ async function bootstrap() {
 
   let lastCommittedSnapshot = null;
   let currentPresetId = 'qs3d-island';
+  let sceneLoadEpoch = 0;
   let sceneAutosave = null;
   const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
 
@@ -202,6 +204,7 @@ async function bootstrap() {
   });
 
   const loadPreset = (presetId, immediateCamera = false) => {
+    sceneLoadEpoch++;
     currentPresetId = presetId;
     interaction?.clearSelection?.();
     buildPresetScene(presetId, { world, arch, pipeline });
@@ -219,6 +222,7 @@ async function bootstrap() {
   };
 
   const restoreSavedPreset = (presetId) => {
+    const expectedEpoch = sceneLoadEpoch;
     const saved = sceneAutosave?.readPresetSlot(presetId);
     if (!saved) {
       if (sceneAutosave?.lastError) {
@@ -229,12 +233,14 @@ async function bootstrap() {
     }
     void history.importJSON(saved.sceneJSON).then((snapshot) => {
       // A later scene switch must never apply an old asynchronous restore.
-      if (currentPresetId !== presetId) return;
+      if (currentPresetId !== presetId || sceneLoadEpoch !== expectedEpoch) return;
       applySnapshot(snapshot);
       resetHistoryWithCurrentState();
       hud?.showToast?.('Đã khôi phục bản đồ đã xây trên thiết bị này.', 2800);
     }).catch((error) => {
-      sceneAutosave?.cancelPending(); // Do not silently replace a broken backup.
+      // An older scene must not cancel the pending save for a newer scene.
+      if (currentPresetId !== presetId || sceneLoadEpoch !== expectedEpoch) return;
+      sceneAutosave?.cancelPending(); // Preserve damaged backup.
       console.warn('[qs3d] Rejected invalid saved preset:', error);
       hud?.showToast?.('Bản lưu của bản đồ này không đọc được. Hãy dùng tệp JSON dự phòng.', 4200);
     });
@@ -302,8 +308,15 @@ async function bootstrap() {
     onPresetChange: (presetId) => {
       audio.unlock?.();
       if (presetId === currentPresetId) return;
-      // Persist the map being left before constructing another template.
-      sceneAutosave?.flush();
+      // A quota error must not silently discard buildings while switching.
+      if (!maySwitchPreset({
+        autosave: sceneAutosave,
+        confirmDiscard: () => window.confirm('Không thể tự lưu bản đồ hiện tại (bộ nhớ trình duyệt có thể đã đầy hoặc bị chặn). Hãy bấm Lưu để tải JSON dự phòng. Vẫn chuyển bản đồ và bỏ các thay đổi chưa lưu?'),
+        onCancel: () => {
+          hud?.setPresetValue?.(currentPresetId);
+          hud?.showToast?.('Đã giữ nguyên bản đồ. Hãy xuất JSON để sao lưu.', 4800);
+        },
+      })) return;
       loadPreset(presetId, false);
       restoreSavedPreset(presetId);
     },
@@ -449,7 +462,7 @@ async function bootstrap() {
   let storage = null;
   try { storage = window.localStorage; } catch { /* Storage denied */ }
   sceneAutosave = new SceneAutosave({ storage, history });
-  const checkpoint = sceneAutosave.read();
+  const checkpoint = sceneAutosave.mostRecentCheckpoint(PRESET_SCENES.map(p => p.id));
   if (checkpoint) {
     void history.importJSON(checkpoint.sceneJSON).then((snapshot) => {
       if (PRESET_SCENES.some((preset) => preset.id === checkpoint.presetId)) {

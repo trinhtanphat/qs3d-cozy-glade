@@ -55,7 +55,7 @@ export class SceneAutosave {
     if (!key || !this.storage) return null;
     try {
       const raw = this.storage.getItem(key);
-      if (!raw) return null;
+      if (!raw) { this.lastError = null; return null; }
       if (raw.length > MAX_AUTOSAVE_LENGTH) throw new Error('Preset autosave too large');
       const record = JSON.parse(raw);
       if (record?.format !== AUTOSAVE_FORMAT || record.version !== 1 ||
@@ -69,6 +69,20 @@ export class SceneAutosave {
       this.lastError = error;
       return null;
     }
+  }
+
+  mostRecentCheckpoint(presetIds = []) {
+    let newest = this.read();
+    let encounteredError = this.lastError;
+    for (const presetId of presetIds) {
+      const checkpoint = this.readPresetSlot(presetId);
+      if (checkpoint && (!newest || checkpoint.savedAt > newest.savedAt)) newest = checkpoint;
+      if (this.lastError) encounteredError = this.lastError;
+    }
+    // Recover a valid map even when the latest-scene pointer was not written
+    // because storage quota ran out between the two checkpoint writes.
+    this.lastError = newest ? null : encounteredError;
+    return newest;
   }
 
   cancelPending() {
@@ -85,8 +99,11 @@ export class SceneAutosave {
   }
 
   schedule(capture, presetId = 'qs3d-island') {
-    if (!this.storage || typeof capture !== 'function') return false;
+    if (typeof capture !== 'function') return false;
+    // Keep the unsaved scene in memory even if storage is blocked. Callers
+    // must be able to warn before switching to another map.
     this.pending = { capture, presetId };
+    if (!this.storage) return false;
     if (this.timer !== null) this.clearTimer(this.timer);
     this.timer = this.setTimer(() => this.flush(), this.delayMs);
     return true;
@@ -97,7 +114,11 @@ export class SceneAutosave {
       this.clearTimer(this.timer);
       this.timer = null;
     }
-    if (!this.pending || !this.storage) return false;
+    if (!this.pending) return false;
+    if (!this.storage) {
+      this.lastError = new Error('Browser storage is unavailable');
+      return false;
+    }
     const { capture, presetId } = this.pending;
     this.pending = null;
     try {
@@ -110,10 +131,12 @@ export class SceneAutosave {
         presetId: String(presetId), sceneJSON };
       const text = JSON.stringify(record);
       if (text.length > MAX_AUTOSAVE_LENGTH) throw new Error('Autosave exceeds size limit');
-      // Legacy latest-scene key remains for backward-compatible boot restore.
-      this.storage.setItem(this.key, text);
+      // Write the per-map slot first. If storage quota is exhausted, never
+      // move the latest-scene pointer to a new map without a valid map slot.
       const slot = sceneSlotKey(presetId);
       if (slot) this.storage.setItem(slot, text);
+      // Legacy latest-scene key remains for backward-compatible boot restore.
+      this.storage.setItem(this.key, text);
       this.lastSavedAt = savedAt;
       this.lastError = null;
       return true;
@@ -121,6 +144,9 @@ export class SceneAutosave {
       // Private browsing, blocked storage, quota and JSON failures must never
       // stop interactive gameplay or manual JSON export.
       this.lastError = error;
+      // Retain the intended snapshot for explicit retry or manual JSON export.
+      // Never silently mark a failed checkpoint as persisted.
+      if (!this.pending) this.pending = { capture, presetId };
       return false;
     }
   }

@@ -37228,7 +37228,10 @@ void main() {
       if (!key || !this.storage) return null;
       try {
         const raw = this.storage.getItem(key);
-        if (!raw) return null;
+        if (!raw) {
+          this.lastError = null;
+          return null;
+        }
         if (raw.length > MAX_AUTOSAVE_LENGTH) throw new Error("Preset autosave too large");
         const record = JSON.parse(raw);
         if (record?.format !== AUTOSAVE_FORMAT || record.version !== 1 || record.presetId !== presetId || typeof record.sceneJSON !== "string" || record.sceneJSON.length > MAX_AUTOSAVE_LENGTH || !Number.isFinite(record.savedAt)) {
@@ -37240,6 +37243,17 @@ void main() {
         this.lastError = error;
         return null;
       }
+    }
+    mostRecentCheckpoint(presetIds = []) {
+      let newest = this.read();
+      let encounteredError = this.lastError;
+      for (const presetId of presetIds) {
+        const checkpoint = this.readPresetSlot(presetId);
+        if (checkpoint && (!newest || checkpoint.savedAt > newest.savedAt)) newest = checkpoint;
+        if (this.lastError) encounteredError = this.lastError;
+      }
+      this.lastError = newest ? null : encounteredError;
+      return newest;
     }
     cancelPending() {
       if (this.timer !== null) this.clearTimer(this.timer);
@@ -37259,8 +37273,9 @@ void main() {
       }
     }
     schedule(capture, presetId = "qs3d-island") {
-      if (!this.storage || typeof capture !== "function") return false;
+      if (typeof capture !== "function") return false;
       this.pending = { capture, presetId };
+      if (!this.storage) return false;
       if (this.timer !== null) this.clearTimer(this.timer);
       this.timer = this.setTimer(() => this.flush(), this.delayMs);
       return true;
@@ -37270,7 +37285,11 @@ void main() {
         this.clearTimer(this.timer);
         this.timer = null;
       }
-      if (!this.pending || !this.storage) return false;
+      if (!this.pending) return false;
+      if (!this.storage) {
+        this.lastError = new Error("Browser storage is unavailable");
+        return false;
+      }
       const { capture, presetId } = this.pending;
       this.pending = null;
       try {
@@ -37288,14 +37307,15 @@ void main() {
         };
         const text = JSON.stringify(record);
         if (text.length > MAX_AUTOSAVE_LENGTH) throw new Error("Autosave exceeds size limit");
-        this.storage.setItem(this.key, text);
         const slot = sceneSlotKey(presetId);
         if (slot) this.storage.setItem(slot, text);
+        this.storage.setItem(this.key, text);
         this.lastSavedAt = savedAt;
         this.lastError = null;
         return true;
       } catch (error) {
         this.lastError = error;
+        if (!this.pending) this.pending = { capture, presetId };
         return false;
       }
     }
@@ -37313,6 +37333,18 @@ void main() {
       }
     }
   };
+
+  // src/ux/PresetSwitchGuard.js
+  function maySwitchPreset({ autosave, confirmDiscard, onCancel }) {
+    if (!autosave?.pending) return true;
+    if (autosave.flush()) return true;
+    if (typeof confirmDiscard !== "function" || !confirmDiscard()) {
+      onCancel?.();
+      return false;
+    }
+    autosave.cancelPending();
+    return true;
+  }
 
   // src/ux/QS3DIsland.js
   var smoothstep7 = (a, b, x) => {
@@ -42085,6 +42117,7 @@ void main() {
     });
     let lastCommittedSnapshot = null;
     let currentPresetId = "qs3d-island";
+    let sceneLoadEpoch = 0;
     let sceneAutosave = null;
     const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
     const updateHistoryButtons = () => {
@@ -42144,6 +42177,7 @@ void main() {
       }
     });
     const loadPreset = (presetId, immediateCamera = false) => {
+      sceneLoadEpoch++;
       currentPresetId = presetId;
       interaction?.clearSelection?.();
       buildPresetScene(presetId, { world, arch, pipeline });
@@ -42160,6 +42194,7 @@ void main() {
       scheduleAutosave();
     };
     const restoreSavedPreset = (presetId) => {
+      const expectedEpoch = sceneLoadEpoch;
       const saved = sceneAutosave?.readPresetSlot(presetId);
       if (!saved) {
         if (sceneAutosave?.lastError) {
@@ -42169,11 +42204,12 @@ void main() {
         return;
       }
       void history.importJSON(saved.sceneJSON).then((snapshot) => {
-        if (currentPresetId !== presetId) return;
+        if (currentPresetId !== presetId || sceneLoadEpoch !== expectedEpoch) return;
         applySnapshot(snapshot);
         resetHistoryWithCurrentState();
         hud?.showToast?.("\u0110\xE3 kh\xF4i ph\u1EE5c b\u1EA3n \u0111\u1ED3 \u0111\xE3 x\xE2y tr\xEAn thi\u1EBFt b\u1ECB n\xE0y.", 2800);
       }).catch((error) => {
+        if (currentPresetId !== presetId || sceneLoadEpoch !== expectedEpoch) return;
         sceneAutosave?.cancelPending();
         console.warn("[qs3d] Rejected invalid saved preset:", error);
         hud?.showToast?.("B\u1EA3n l\u01B0u c\u1EE7a b\u1EA3n \u0111\u1ED3 n\xE0y kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c. H\xE3y d\xF9ng t\u1EC7p JSON d\u1EF1 ph\xF2ng.", 4200);
@@ -42233,7 +42269,14 @@ void main() {
       onPresetChange: (presetId) => {
         audio.unlock?.();
         if (presetId === currentPresetId) return;
-        sceneAutosave?.flush();
+        if (!maySwitchPreset({
+          autosave: sceneAutosave,
+          confirmDiscard: () => window.confirm("Kh\xF4ng th\u1EC3 t\u1EF1 l\u01B0u b\u1EA3n \u0111\u1ED3 hi\u1EC7n t\u1EA1i (b\u1ED9 nh\u1EDB tr\xECnh duy\u1EC7t c\xF3 th\u1EC3 \u0111\xE3 \u0111\u1EA7y ho\u1EB7c b\u1ECB ch\u1EB7n). H\xE3y b\u1EA5m L\u01B0u \u0111\u1EC3 t\u1EA3i JSON d\u1EF1 ph\xF2ng. V\u1EABn chuy\u1EC3n b\u1EA3n \u0111\u1ED3 v\xE0 b\u1ECF c\xE1c thay \u0111\u1ED5i ch\u01B0a l\u01B0u?"),
+          onCancel: () => {
+            hud?.setPresetValue?.(currentPresetId);
+            hud?.showToast?.("\u0110\xE3 gi\u1EEF nguy\xEAn b\u1EA3n \u0111\u1ED3. H\xE3y xu\u1EA5t JSON \u0111\u1EC3 sao l\u01B0u.", 4800);
+          }
+        })) return;
         loadPreset(presetId, false);
         restoreSavedPreset(presetId);
       },
@@ -42362,7 +42405,7 @@ void main() {
     } catch {
     }
     sceneAutosave = new SceneAutosave({ storage, history });
-    const checkpoint = sceneAutosave.read();
+    const checkpoint = sceneAutosave.mostRecentCheckpoint(PRESET_SCENES.map((p) => p.id));
     if (checkpoint) {
       void history.importJSON(checkpoint.sceneJSON).then((snapshot) => {
         if (PRESET_SCENES.some((preset) => preset.id === checkpoint.presetId)) {
