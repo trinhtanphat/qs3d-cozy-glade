@@ -34,6 +34,7 @@
     "test:e2e:quota": "node tests/e2e/storage-quota-gameplay.mjs",
     "test:e2e:library": "node tests/e2e/scene-library-gameplay.mjs",
     "test:e2e:status": "node tests/e2e/autosave-status-gameplay.mjs",
+    "test:e2e:gpu": "node tests/e2e/hardware-gpu-smoke.cjs",
     "preview": "python3 -m http.server 8080"
   },
   "dependencies": {

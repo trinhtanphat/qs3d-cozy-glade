@@ -238,3 +238,19 @@ Evidence:
 - QA JSON evidence: C:\ProgramData\QS3D\GladeDemo\pr13-autosave-qa\autosave-status-e2e.json.
 - Isolated QA Node process exited, shared CDP Chrome survived; Session 2, other projects, tunnels were not touched.
 - Secondary hardware check: DESKTOP-PHA1S90 Intel UHD Graphics 620 (driver 31.0.101.2141) Chrome 390x844 loaded production HTTP 200 but failed to reach the game-ready sentinel within 65 seconds (existing mini-gpu script exit code 1). This hardware result is **NOT PASS**; no reboot/network reset or changes to the Intel machine were made. Physical iOS/Android and longer endurance are not certified.
+
+## 14/11/2026 — GPU hardware acceptance recovered; issue #14 closed
+
+Issue https://github.com/trinhtanphat/qs3d-cozy-glade/issues/14 had logged one public Intel UHD 620 / D3D11 game-ready timeout (HTTP 200 but loading overlay did not clear in the earlier 65-second attempt). Follow-up remote access to PHA was recovered safely without reboot, Wi-Fi reset, tunnel modifications or closing browser tabs.
+
+Two subsequent **independent real hardware QA** runs on DESKTOP-PHA1S90 against https://glade.qs3d.site/ passed, both exited 0:
+1. Bounded diagnostic derived from the existing hardware script: actual WebGL2 context, game initialized, loading overlay class is-hidden, Intel UHD Graphics 620 ANGLE Direct3D11 driver path, 390x844 viewport (internal canvas 331x717 with DPR 0.85), 36 FPS, Eco preset, 125 draw calls, 531803 triangles and 3000 grass instances.
+2. Completely unmodified prior mini-gpu.cjs: actual Intel UHD 620 ANGLE Direct3D11 renderer, WebGL2 ready, 34 FPS before / 37 FPS after Eco activation, 125 draw calls, about 531547 triangles, exit 0.
+
+Archived JSON proof copies on PHA:
+- C:\ProgramData\QS3D\GladeGPUQA\intel-uhd620-proof-20261114-run1.json — SHA256 87BDB777B89A46AC26BB3890ABD2122DD100F2203ECEEFF6ECD0B07A50135943
+- C:\ProgramData\QS3D\GladeGPUQA\intel-uhd620-proof-20261114-run2.json — SHA256 0D3A7CB879F422ECB3E522053E92B4300837DE1BFA2307604EFCA61609E19EC1
+
+A new portable **local-only** hardware smoke script tests/e2e/hardware-gpu-smoke.cjs and HOWTO tests/e2e/HARDWARE-GPU-QA.md were added for future reproducibility (no GitHub Actions). The script verifies WebGL2, non-software hardware renderer, actual scene draw calls and triangle geometry, Eco graphics preset and minimum FPS across 1–3 bounded hardware runs, recording diagnostic JSON for future failures.
+
+Acceptance: Intel UHD 620 / ANGLE D3D11 Eco **hardware smoke recovered PASS, 2/2**. Still not certified: physical iPhone/Android hardware, every possible GPU and multi-hour load endurance.
