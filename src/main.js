@@ -5,6 +5,7 @@ import { WorldManager } from './world/WorldManager.js';
 import { AudioEngine } from './ux/AudioEngine.js';
 import { HistoryManager } from './ux/HistoryManager.js';
 import { SceneAutosave } from './ux/SceneAutosave.js';
+import { installSceneLibraryPanel } from './ux/SceneLibraryPanel.js';
 import { maySwitchPreset } from './ux/PresetSwitchGuard.js';
 import { PRESET_SCENES, buildPresetScene } from './ux/PresetScenes.js';
 import { HUDController } from './ux/HUDController.js';
@@ -140,6 +141,7 @@ async function bootstrap() {
   let currentPresetId = 'qs3d-island';
   let sceneLoadEpoch = 0;
   let sceneAutosave = null;
+  let sceneLibraryPanel = null;
   const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
 
   const updateHistoryButtons = () => {
@@ -338,6 +340,7 @@ async function bootstrap() {
       hud?.showToast?.('Đã xuất cảnh thành tệp JSON');
     },
     onExportJSON: () => hudCallbacks.onExport(),
+    onLibraryOpen: () => sceneLibraryPanel?.open(),
 
     onImport: async (file) => {
       if (!file) return;
@@ -462,6 +465,14 @@ async function bootstrap() {
   let storage = null;
   try { storage = window.localStorage; } catch { /* Storage denied */ }
   sceneAutosave = new SceneAutosave({ storage, history });
+  sceneLibraryPanel = installSceneLibraryPanel({
+    autosave: sceneAutosave,
+    history,
+    presets: PRESET_SCENES,
+    getActivePresetId: () => currentPresetId,
+    captureSnapshot,
+    onRestored: () => window.location.reload(),
+  });
   const checkpoint = sceneAutosave.mostRecentCheckpoint(PRESET_SCENES.map(p => p.id));
   if (checkpoint) {
     void history.importJSON(checkpoint.sceneJSON).then((snapshot) => {
@@ -499,6 +510,7 @@ async function bootstrap() {
     captureSnapshot,
     applySnapshot,
     sceneAutosave,
+    sceneLibraryPanel,
     adaptiveQuality,
   };
 
