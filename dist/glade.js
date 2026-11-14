@@ -37721,6 +37721,84 @@ void main() {
     return { open, close: dismiss, refresh, element: overlay };
   }
 
+  // src/ux/GraphicsRecovery.js
+  function installGraphicsRecovery({ canvas, overlay, statusEl, onReload, onContextLost }) {
+    if (!canvas || !overlay || !statusEl) throw new Error("Graphics recovery requires canvas and loading UI");
+    const doc = overlay.ownerDocument;
+    const retry = doc.createElement("button");
+    retry.id = "graphics-retry";
+    retry.type = "button";
+    retry.textContent = "Th\u1EED l\u1EA1i \u0111\u1ED3 h\u1ECDa";
+    retry.title = "T\u1EA3i l\u1EA1i \u0111\u1ED3 h\u1ECDa tr\xEAn tr\xECnh duy\u1EC7t n\xE0y";
+    retry.hidden = true;
+    retry.setAttribute("aria-label", "Th\u1EED l\u1EA1i \u0111\u1ED3 h\u1ECDa WebGL2");
+    overlay.append(retry);
+    const exportBtn = doc.createElement("button");
+    exportBtn.id = "graphics-backup";
+    exportBtn.type = "button";
+    exportBtn.textContent = "T\u1EA3i b\u1EA3n thi\u1EBFt k\u1EBF d\u1EF1 ph\xF2ng";
+    exportBtn.title = "Xu\u1EA5t c\u1EA3nh \u0111ang m\u1EDF th\xE0nh t\u1EC7p JSON tr\u01B0\u1EDBc khi t\u1EA3i l\u1EA1i";
+    exportBtn.hidden = true;
+    overlay.append(exportBtn);
+    let lost = false;
+    let backup = null;
+    const showFailure = (message) => {
+      overlay.classList.remove("is-hidden");
+      overlay.classList.add("has-error");
+      statusEl.textContent = String(message);
+      retry.hidden = false;
+      exportBtn.hidden = typeof backup !== "function";
+    };
+    const onLost = (event) => {
+      event.preventDefault();
+      lost = true;
+      try {
+        onContextLost?.();
+      } catch {
+      }
+      showFailure("K\u1EBFt n\u1ED1i v\u1EDBi GPU \u0111\xE3 b\u1ECB gi\xE1n \u0111o\u1EA1n. Thi\u1EBFt k\u1EBF \u0111\u01B0\u1EE3c gi\u1EEF tr\xEAn thi\u1EBFt b\u1ECB khi c\xF3 th\u1EC3. H\xE3y t\u1EA3i JSON d\u1EF1 ph\xF2ng ho\u1EB7c th\u1EED l\u1EA1i \u0111\u1ED3 h\u1ECDa.");
+    };
+    const onRestored = () => {
+      if (!lost) return;
+      showFailure("GPU \u0111\xE3 ph\u1EA3n h\u1ED3i tr\u1EDF l\u1EA1i. H\xE3y t\u1EA3i l\u1EA1i \u0111\u1ED3 h\u1ECDa \u0111\u1EC3 kh\u1EDFi t\u1EA1o c\u1EA3nh 3D an to\xE0n.");
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
+    retry.addEventListener("click", () => {
+      try {
+        onReload?.();
+      } catch {
+        showFailure("Ch\u01B0a th\u1EC3 t\u1EA3i l\u1EA1i \u0111\u1ED3 h\u1ECDa. H\xE3y xu\u1EA5t JSON d\u1EF1 ph\xF2ng tr\u01B0\u1EDBc khi th\u1EED l\u1EA1i.");
+      }
+    });
+    exportBtn.addEventListener("click", () => {
+      try {
+        backup?.();
+      } catch {
+        showFailure("Xu\u1EA5t JSON ch\u01B0a th\xE0nh c\xF4ng. Kh\xF4ng t\u1EA3i l\u1EA1i trang khi ch\u01B0a c\xF3 b\u1EA3n sao l\u01B0u.");
+      }
+    });
+    return {
+      get isLost() {
+        return lost;
+      },
+      showFailure,
+      suspend() {
+        lost = true;
+      },
+      setBackupHandler(callback) {
+        backup = typeof callback === "function" ? callback : null;
+        if (!retry.hidden) exportBtn.hidden = !backup;
+      },
+      dispose() {
+        canvas.removeEventListener("webglcontextlost", onLost);
+        canvas.removeEventListener("webglcontextrestored", onRestored);
+        retry.remove();
+        exportBtn.remove();
+      }
+    };
+  }
+
   // src/ux/PresetSwitchGuard.js
   function maySwitchPreset({ autosave, confirmDiscard, onCancel }) {
     if (!autosave?.pending) return true;
@@ -42470,6 +42548,22 @@ void main() {
       setLoadingError("Thi\u1EBFu v\xF9ng hi\u1EC3n th\u1ECB 3D (#glade-canvas ho\u1EB7c #hud-root).");
       return;
     }
+    let sceneAutosave = null;
+    const graphicsRecovery = installGraphicsRecovery({
+      canvas,
+      overlay: document.getElementById("loading-overlay"),
+      statusEl: document.getElementById("loading-status"),
+      onContextLost: () => {
+        if (sceneAutosave?.pending) sceneAutosave.flush();
+      },
+      onReload: () => {
+        if (sceneAutosave?.pending && !sceneAutosave.flush()) {
+          const approved = window.confirm("Kh\xF4ng t\u1EF1 l\u01B0u \u0111\u01B0\u1EE3c thi\u1EBFt k\u1EBF. H\xE3y t\u1EA3i JSON d\u1EF1 ph\xF2ng tr\u01B0\u1EDBc khi th\u1EED l\u1EA1i. V\u1EABn t\u1EA3i l\u1EA1i trang v\xE0 b\u1ECF c\xE1c thay \u0111\u1ED5i ch\u01B0a l\u01B0u?");
+          if (!approved) return;
+        }
+        window.location.reload();
+      }
+    });
     const QUALITY_SETTING_KEY = "qs3d-glade-graphics-tier";
     let selectedQuality = null;
     try {
@@ -42487,7 +42581,7 @@ void main() {
       });
     } catch (err) {
       console.error("[tiny-glade] Failed to initialize WebGL2 pipeline:", err);
-      setLoadingError(`Kh\xF4ng th\u1EC3 kh\u1EDFi \u0111\u1ED9ng \u0111\u1ED3 h\u1ECDa WebGL2: ${err?.message || err}`);
+      graphicsRecovery.showFailure(`Kh\xF4ng th\u1EC3 kh\u1EDFi \u0111\u1ED9ng \u0111\u1ED3 h\u1ECDa WebGL2: ${err?.message || err}. B\u1EA1n c\xF3 th\u1EC3 th\u1EED l\u1EA1i m\xE0 kh\xF4ng c\u1EA7n kh\u1EDFi \u0111\u1ED9ng l\u1EA1i m\xE1y.`);
       return;
     }
     if (!selectedQuality) {
@@ -42547,9 +42641,20 @@ void main() {
     let lastCommittedSnapshot = null;
     let currentPresetId = "qs3d-island";
     let sceneLoadEpoch = 0;
-    let sceneAutosave = null;
     let sceneLibraryPanel = null;
     const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
+    graphicsRecovery.setBackupHandler(() => {
+      const json = history.serializeJSON(captureSnapshot());
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "qs3d-glade-webgl-du-phong-" + (/* @__PURE__ */ new Date()).toISOString().slice(0, 10) + ".json";
+      a.style.display = "none";
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    });
     const updateHistoryButtons = () => {
       hud?.setHistoryState?.(history.canUndo(), history.canRedo());
     };
@@ -42894,6 +42999,7 @@ void main() {
       applySnapshot,
       sceneAutosave,
       sceneLibraryPanel,
+      graphicsRecovery,
       adaptiveQuality
     };
     let prevTime = performance.now();
@@ -42902,6 +43008,7 @@ void main() {
     let statsAccumTime = 0;
     let statsFrames = 0;
     function frame(now) {
+      if (graphicsRecovery.isLost) return;
       requestAnimationFrame(frame);
       const rawDt = (now - prevTime) / 1e3;
       prevTime = now;
@@ -42913,7 +43020,15 @@ void main() {
       world.update(dt, elapsed, pipeline.envState, arch.getChimneyPositions());
       pipeline.update(dt, elapsed, cameraController.getFocusWorldPos());
       audio.updateAmbience?.(dt, pipeline.envState);
-      pipeline.render();
+      try {
+        pipeline.render();
+      } catch (error) {
+        console.error("[qs3d] WebGL frame failed:", error);
+        if (sceneAutosave?.pending) sceneAutosave.flush();
+        graphicsRecovery.suspend();
+        graphicsRecovery.showFailure("\u0110\u1ED3 h\u1ECDa 3D \u0111\xE3 d\u1EEBng. H\xE3y t\u1EA3i t\u1EC7p JSON d\u1EF1 ph\xF2ng r\u1ED3i nh\u1EA5n Th\u1EED l\u1EA1i \u0111\u1ED3 h\u1ECDa.");
+        return;
+      }
       if (!firstFrameRendered) {
         firstFrameRendered = true;
         hideLoadingOverlay();

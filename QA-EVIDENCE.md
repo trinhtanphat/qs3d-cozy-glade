@@ -277,3 +277,20 @@ Three consecutive hardware checks against https://glade.qs3d.site/ then exited 0
 Local artifact: C:\ProgramData\QS3D\GladeGPUQA\pr15-final-3run\gpu-hardware-smoke.json, SHA-256 **F486788188093C30A9A458BB263F3B72B04BAAE85904A65CB8527FCFEFAADEBA**. The Intel machine was not rebooted; its boot time remained 14 Nov 2026 14:20:27, with about 3.1 GiB RAM available after completion. The earlier conservative-flags A/B run also passed 2/2, for **5/5 consecutive conservative-flags hardware successes** across those two batches.
 
 Acceptance is limited to Intel UHD 620, Chrome 157 / ANGLE D3D11, Eco preset and 390x844 emulated mobile viewport. Stress runs using aggressive GPU overrides can still trigger Chromium's context-blocking guard; don't use those overrides as the default acceptance profile. This does not prove every real mobile GPU or many-hour operational endurance.
+
+## 14/11/2026 — Graceful WebGL2 context loss and safe scene recovery
+
+The game previously displayed a static error on renderer initialization failure and had no deliberate recovery path for a GPU context lost during an active editing session. This change adds a user-controlled WebGL recovery screen, with no background reload loop or hidden loss of editing state.
+
+- If WebGL2 initialization fails, show a visible Vietnamese Thử lại đồ họa button.
+- If the browser fires webglcontextlost while a scene is active, call preventDefault, flush pending browser-local autosave if possible, stop the render loop and show a clear error with Thử lại đồ họa and Tải bản thiết kế dự phòng.
+- Emergency JSON export serializes the current live scene even if localStorage is full, without GPU or network.
+- Clicking Retry persists pending edits; when storage is blocked, browser confirmation is required before risking unsaved edits. Cancel preserves scene and backup UI. Successful persistence then allows an explicit reload to rebuild WebGL resources and restore the saved map.
+- A webglcontextrestored event never blindly resumes custom postprocessing resources in an unsafe state; explicit reload remains available.
+- Accessible buttons and viewport-constrained styles at 390px.
+
+**Local QA on WIN11-181:** npm test **132/132 PASS** (six new recovery unit tests), npm run build PASS, git diff --check PASS. Playwright in separate Chrome 157 CDP context on isolated port 5487: **success:true, errorCount:0**. E2E creates a cottage by mouse in Empty Meadow, waits for autosave, changes time to 22.25, injects a *synthetic webglcontextlost browser event* (UI test without forcing actual GPU failure), and injects storage quota denial. Recovery screen appears; canceling reload preserves the unsaved edit; emergency JSON download contains one house and time=22.25 (330,747 bytes). After storage resumes, explicit retry reloads exactly once, restoring the house and time. At 390px the layout fits with no overflow. Local evidence: C:\ProgramData\QS3D\GladeDemo\pr16-graphics-recovery\webgl-recovery-e2e.json and recovered-webgl-design.json. Reproducible: npm run test:e2e:graphics-recovery. This validates recovery flow under *simulated* context loss, not physical GPU restoration across every driver.
+
+**Critical environment warning:** On 14 Nov 2026, DESKTOP-PHA1S90 independently rebooted abnormally at about 17:04 local time. Windows System log shows Kernel-Power Event 41, EventLog 6008 and WHEA Logger 17 PCIe Root Port corrected errors. Hardware stability is a separate unresolved issue. No further GPU stress, reboot, Wi-Fi reset or driver changes were performed during this QA. Physical iOS/Android devices and multi-hour hardware endurance remain unverified. Earlier Intel UHD 620 smoke PASS is not comprehensive host stability proof.
+
+No modification to WIN11-181 Session 2, other QS3D apps, production tunnel or GitHub Actions.

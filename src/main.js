@@ -6,6 +6,7 @@ import { AudioEngine } from './ux/AudioEngine.js';
 import { HistoryManager } from './ux/HistoryManager.js';
 import { SceneAutosave } from './ux/SceneAutosave.js';
 import { installSceneLibraryPanel } from './ux/SceneLibraryPanel.js';
+import { installGraphicsRecovery } from './ux/GraphicsRecovery.js';
 import { maySwitchPreset } from './ux/PresetSwitchGuard.js';
 import { PRESET_SCENES, buildPresetScene } from './ux/PresetScenes.js';
 import { HUDController } from './ux/HUDController.js';
@@ -46,6 +47,22 @@ async function bootstrap() {
     return;
   }
 
+  let sceneAutosave = null;
+  const graphicsRecovery = installGraphicsRecovery({
+    canvas,
+    overlay: document.getElementById('loading-overlay'),
+    statusEl: document.getElementById('loading-status'),
+    onContextLost: () => { if (sceneAutosave?.pending) sceneAutosave.flush(); },
+    onReload: () => {
+      // Never silently discard pending user edits when retrying WebGL.
+      if (sceneAutosave?.pending && !sceneAutosave.flush()) {
+        const approved = window.confirm('Không tự lưu được thiết kế. Hãy tải JSON dự phòng trước khi thử lại. Vẫn tải lại trang và bỏ các thay đổi chưa lưu?');
+        if (!approved) return;
+      }
+      window.location.reload();
+    },
+  });
+
   // Respect explicit preferences, use Balanced on touch screens, and
   // detect a few proven weak GPU families after WebGL context creation.
   const QUALITY_SETTING_KEY = 'qs3d-glade-graphics-tier';
@@ -67,7 +84,7 @@ async function bootstrap() {
     });
   } catch (err) {
     console.error('[tiny-glade] Failed to initialize WebGL2 pipeline:', err);
-    setLoadingError(`Không thể khởi động đồ họa WebGL2: ${err?.message || err}`);
+    graphicsRecovery.showFailure(`Không thể khởi động đồ họa WebGL2: ${err?.message || err}. Bạn có thể thử lại mà không cần khởi động lại máy.`);
     return;
   }
 
@@ -140,9 +157,20 @@ async function bootstrap() {
   let lastCommittedSnapshot = null;
   let currentPresetId = 'qs3d-island';
   let sceneLoadEpoch = 0;
-  let sceneAutosave = null;
   let sceneLibraryPanel = null;
   const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
+  graphicsRecovery.setBackupHandler(() => {
+    const json = history.serializeJSON(captureSnapshot());
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'qs3d-glade-webgl-du-phong-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.style.display = 'none';
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  });
 
   const updateHistoryButtons = () => {
     hud?.setHistoryState?.(history.canUndo(), history.canRedo());
@@ -525,6 +553,7 @@ async function bootstrap() {
     applySnapshot,
     sceneAutosave,
     sceneLibraryPanel,
+    graphicsRecovery,
     adaptiveQuality,
   };
 
@@ -536,6 +565,9 @@ async function bootstrap() {
   let statsFrames = 0;
 
   function frame(now) {
+    // Stop the animation loop after GPU context loss; a user-controlled
+    // reload reconstructs WebGL resources and restores the saved scene.
+    if (graphicsRecovery.isLost) return;
     requestAnimationFrame(frame);
 
     const rawDt = (now - prevTime) / 1000;
@@ -549,7 +581,15 @@ async function bootstrap() {
     world.update(dt, elapsed, pipeline.envState, arch.getChimneyPositions());
     pipeline.update(dt, elapsed, cameraController.getFocusWorldPos());
     audio.updateAmbience?.(dt, pipeline.envState);
-    pipeline.render();
+    try {
+      pipeline.render();
+    } catch (error) {
+      console.error('[qs3d] WebGL frame failed:', error);
+      if (sceneAutosave?.pending) sceneAutosave.flush();
+      graphicsRecovery.suspend();
+      graphicsRecovery.showFailure('Đồ họa 3D đã dừng. Hãy tải tệp JSON dự phòng rồi nhấn Thử lại đồ họa.');
+      return;
+    }
 
     if (!firstFrameRendered) {
       firstFrameRendered = true;
