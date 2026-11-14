@@ -340,3 +340,13 @@ Critical forensic correction: two Windows Error Reporting Kernel_141 folders had
 A new strictly read-only diagnostic snapshot script under tests/diagnostics/pha-host-incident-readonly.ps1 and physical-recovery runbook under tests/diagnostics/PHA-HARDWARE-RECOVERY.md were created. The script syntax was verified and exercised on WIN11-181 (writes only a JSON evidence file with SHA-256; never touches network/power/driver configuration). Actual PHA provenance-verified execution and report integrity should be recorded separately before final acceptance.
 
 Game production remained healthy and clean at bc5a38ec; issue #17 remains unresolved pending onsite power/adapter/battery and Wi-Fi PCIe hardware investigation.
+
+### 14 November 2026, 20:39–20:40 VN — provenance-verified PHA forensic snapshot
+
+The new read-only snapshot script was downloaded onto DESKTOP-PHA1S90 from exact Git commit 75b860acc80a089a3093e89fa7125e05d20b8753 and SHA-256 matched the QA source: CF2C619861F0C67FAA068F8DACBB2E1AD913DED774DF3E87450843CFF4200FF3. Its PowerShell parser also passed directly on PHA, followed by a successful on-device execution (exit code 0). It writes only a time-stamped JSON evidence file, not Windows configuration.
+
+Evidence: C:\ProgramData\QS3D\GladeGPUQA\incident-evidence\pha-incident-20261114-203956.json
+Evidence SHA-256: 37E30936B2E0913F67835DC4AEC1712A6D08BB4C69B260C52AEFEACBD94CA77A
+Counts emitted by the on-device script: 7 Kernel-Power Event41 and 7 EventLog6008 within 48h, 188 WHEA17 within 60m, Win32_Battery instance count 0, two existing WER 141 reports. Their actual EventTime was verified independently as 7 Nov 2026 (14:28, 15:45), not 14 Nov.
+
+Subsequent read-only PHA inspection commands intermittently timed out (16s and 18s) despite the device being displayed as connected. To protect its unstable Wi-Fi path, no additional hardware diagnosis, Wi-Fi changes, reboot or GPU stress was attempted after these timeouts. The source GitHub issue #17 must remain OPEN pending a safe wired/out-of-band recovery route and onsite power/battery/PCIe checks.
