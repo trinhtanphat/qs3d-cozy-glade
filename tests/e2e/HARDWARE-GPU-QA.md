@@ -44,3 +44,16 @@ The earliest two Intel D3D11 runs passed, but the first checked-in multi-run har
 A bounded A/B test removed the two aggressive flags but **continued to require a real Intel D3D11 hardware renderer**, rejecting SwiftShader/software. With the conservative flags, both runs rendered successfully at 17 and 23 FPS, 125 draw calls per frame. The checked-in script therefore uses the conservative flags by default and detects the loading-overlay has-error state promptly, without wasting the full readiness timeout. Evidence: C:\ProgramData\QS3D\GladeGPUQA\pr15-intel-repeat\gpu-hardware-smoke.json (aggressive flags, 1/2) and C:\ProgramData\QS3D\GladeGPUQA\pr15-safe-flags\gpu-hardware-smoke.json (conservative flags, 2/2).
 
 **Interpretation:** This A/B evidence supports using less invasive browser flags for acceptance. It does not prove the cause of every possible driver crash, long-term hardware reliability or the absence of WebGL context losses. A browser may refuse WebGL contexts after GPU process resets; never misreport such a condition as a passing hardware test.
+
+### Final checked-in harness acceptance — 14 November 2026
+
+The canonical conservative-flags script at Git commit cb810cf94835c0dd6d76d81568a25b97fdd5abed was downloaded verbatim to DESKTOP-PHA1S90, and the SHA-256 matched its checked-in counterpart: E079C0ED139A0E91E7D52DED113F480E36E6D6372A7DCFC2B5752A648CCDC6FE.
+
+Three consecutive hardware checks against https://glade.qs3d.site/ then exited 0 with **GPU_HARDWARE_ACCEPTANCE=PASS RUNS=3**. All three used real Intel UHD Graphics 620 (ANGLE Direct3D11) WebGL2 rather than SwiftShader, loading overlay hidden and actual Eco scene rendering:
+- Run 1: 31 FPS, 125 draw calls, 530675 triangles; no page or network errors.
+- Run 2: 31 FPS, 125 draw calls, 529307 triangles; no page or network errors.
+- Run 3: 34 FPS, 125 draw calls, 529867 triangles; no page or network errors.
+
+Local artifact: C:\ProgramData\QS3D\GladeGPUQA\pr15-final-3run\gpu-hardware-smoke.json, SHA-256 **F486788188093C30A9A458BB263F3B72B04BAAE85904A65CB8527FCFEFAADEBA**. The Intel machine was not rebooted; its boot time remained 14 Nov 2026 14:20:27, with about 3.1 GiB RAM available after completion. The earlier conservative-flags A/B run also passed 2/2, for **5/5 consecutive conservative-flags hardware successes** across those two batches.
+
+Acceptance is limited to Intel UHD 620, Chrome 157 / ANGLE D3D11, Eco preset and 390x844 emulated mobile viewport. Stress runs using aggressive GPU overrides can still trigger Chromium's context-blocking guard; don't use those overrides as the default acceptance profile. This does not prove every real mobile GPU or many-hour operational endurance.
