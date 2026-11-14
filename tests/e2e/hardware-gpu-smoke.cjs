@@ -38,8 +38,10 @@ async function runOnce(number) {
   try {
     browser = await chromium.launch({
       executablePath: chromeBin, headless: true, timeout: 35000,
-      args: ['--no-sandbox', '--enable-gpu', '--use-gl=angle',
-        '--use-angle=d3d11', '--ignore-gpu-blocklist', '--disable-software-rasterizer'],
+      // Avoid forced driver/blocklist overrides: Intel UHD 620 D3D11
+      // passed repeated hardware QA with these conservative Chrome flags.
+      // Strict hardware verification below rejects any software fallback.
+      args: ['--no-sandbox', '--enable-gpu', '--use-gl=angle', '--use-angle=d3d11'],
     });
     context = await browser.newContext({
       viewport: { width: 390, height: 844 }, deviceScaleFactor: 1,
@@ -64,8 +66,8 @@ async function runOnce(number) {
 
     try {
       await page.waitForFunction(
-        () => !!window.__glade &&
-          document.getElementById('loading-overlay')?.classList.contains('is-hidden'),
+        () => (!!window.__glade && document.getElementById('loading-overlay')?.classList.contains('is-hidden')) ||
+          document.getElementById('loading-overlay')?.classList.contains('has-error'),
         null, { timeout: readinessTimeout }
       );
     } catch (error) {
@@ -77,6 +79,10 @@ async function runOnce(number) {
       throw Error('Scene did not become ready: ' + error.message);
     }
 
+    if (await page.evaluate(() => document.getElementById('loading-overlay')?.classList.contains('has-error'))) {
+      const message = await page.evaluate(() => document.getElementById('loading-status')?.textContent);
+      throw Error('Game initialization failed: ' + (message || 'Unknown WebGL2 context failure'));
+    }
     item.before = await page.evaluate(() => {
       const canvas = document.getElementById('glade-canvas');
       const gl = canvas?.getContext('webgl2');

@@ -36,3 +36,11 @@ Real hardware machine DESKTOP-PHA1S90, Intel UHD Graphics 620 (driver 31.0.101.2
 Artifacts preserved on PHA in C:\ProgramData\QS3D\GladeGPUQA under intel-uhd620-proof-20261114-run1.json and intel-uhd620-proof-20261114-run2.json. Closed issue #14 documents the earlier intermittent 65-second readiness timeout; two later real GPU hardware passes recovered the previously missing evidence. This does **not** imply testing on a physical iOS/Android phone, every GPU, or sustained hours-long benchmark.
 
 Do not add this test to GitHub Actions while the user's Actions quota remains exhausted; all QA is run locally.
+
+## Browser-flag A/B finding on Intel UHD 620 (14 November 2026)
+
+The earliest two Intel D3D11 runs passed, but the first checked-in multi-run harness used aggressive flags, including --ignore-gpu-blocklist and --disable-software-rasterizer. That harness then reproduced an intermittent failure: **run 1 WebGL2 context creation was denied, run 2 hardware PASS**. Chromium console reported "Web page caused context loss and was blocked". This is a browser-side WebGL context blocking mechanism (not a failed HTTP request). The game showed its existing WebGL2 error message instead of rendering.
+
+A bounded A/B test removed the two aggressive flags but **continued to require a real Intel D3D11 hardware renderer**, rejecting SwiftShader/software. With the conservative flags, both runs rendered successfully at 17 and 23 FPS, 125 draw calls per frame. The checked-in script therefore uses the conservative flags by default and detects the loading-overlay has-error state promptly, without wasting the full readiness timeout. Evidence: C:\ProgramData\QS3D\GladeGPUQA\pr15-intel-repeat\gpu-hardware-smoke.json (aggressive flags, 1/2) and C:\ProgramData\QS3D\GladeGPUQA\pr15-safe-flags\gpu-hardware-smoke.json (conservative flags, 2/2).
+
+**Interpretation:** This A/B evidence supports using less invasive browser flags for acceptance. It does not prove the cause of every possible driver crash, long-term hardware reliability or the absence of WebGL context losses. A browser may refuse WebGL contexts after GPU process resets; never misreport such a condition as a passing hardware test.

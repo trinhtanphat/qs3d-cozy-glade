@@ -254,3 +254,13 @@ Archived JSON proof copies on PHA:
 A new portable **local-only** hardware smoke script tests/e2e/hardware-gpu-smoke.cjs and HOWTO tests/e2e/HARDWARE-GPU-QA.md were added for future reproducibility (no GitHub Actions). The script verifies WebGL2, non-software hardware renderer, actual scene draw calls and triangle geometry, Eco graphics preset and minimum FPS across 1–3 bounded hardware runs, recording diagnostic JSON for future failures.
 
 Acceptance: Intel UHD 620 / ANGLE D3D11 Eco **hardware smoke recovered PASS, 2/2**. Still not certified: physical iPhone/Android hardware, every possible GPU and multi-hour load endurance.
+
+### 14/11/2026 — Correction: reproducibility exposed aggressive Chrome-flag instability
+
+After the two passing historical hardware smoke runs above, a new reproducible hardware harness with --ignore-gpu-blocklist and --disable-software-rasterizer produced a mixed outcome on the same Intel UHD 620 / D3D11 device: **1/2**. The failed run received HTTP 200 but THREE.WebGLRenderer could not create a WebGL2 context because Chromium reported "Web page caused context loss and was blocked"; the second run rendered successfully at 34 FPS. This result reopened GitHub issue #14, overturning the earlier broad claim that the timeout was fully resolved.
+
+An A/B variant with conservative Chrome flags (still requiring exact Intel D3D11 hardware identity, explicitly rejecting software rendering) subsequently **PASS 2/2** at 17 FPS and 23 FPS. The repository GPU smoke harness was updated to use those conservative flags and to stop promptly when the game displays an initialization error. Evidence on PHA:
+- Aggressive: C:\ProgramData\QS3D\GladeGPUQA\pr15-intel-repeat\gpu-hardware-smoke.json — 1/2 PASS, overall FAIL.
+- Conservative: C:\ProgramData\QS3D\GladeGPUQA\pr15-safe-flags\gpu-hardware-smoke.json — 2/2 PASS, overall PASS.
+
+This is an operational correction to GPU QA launch flags, not a release of new gameplay code. Independent repeat on the final committed script must be checked before claiming that exact revision PASS. Do not claim universal GPU/physical-phone or long-run 100% certification.
