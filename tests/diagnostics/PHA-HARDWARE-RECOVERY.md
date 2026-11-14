@@ -39,3 +39,20 @@ The script only reads boot time, selected Windows Event Log records, driver vers
 - Open project incident: https://github.com/trinhtanphat/qs3d-cozy-glade/issues/17
 
 Keep hardware issue #17 open until actual root cause and stability are independently verified.
+
+## 15 Nov 2026 — Fast Startup mitigation, hardware still blocked
+
+**New live PHA boot:** 15 Nov 2026 06:14:18 VN, with Kernel-Power 41 and EventLog 6008. The read-only snapshot script on PHA was SHA-256 verified and executed successfully at 06:17, writing C:\ProgramData\QS3D\GladeGPUQA\incident-evidence\pha-incident-20261115-061713.json, SHA-256 **54141AE3386F32B772E8EBBED08DF94E5328D4166B789ADED410F7D6DF4189A4** (7 unexpected restart pairs in 48h, 20 WHEA17/hour in that sample; WHEA later reached 50/hour).
+
+Detailed Windows Event Log investigation revealed **5 Kernel-Boot Event 29 Fast Startup failures in 72h** at Nov12 12:30, Nov14 06:03/15:33/17:04 and Nov15 06:14, all **0xC000007B**. Latest Event41 also reported BugcheckCode=0, SleepInProgress=6 and BootAppStatus=3221225595 (0xC000007B). No volmgr Event45/46/161 was found in the inspected window; a 3840 MiB pagefile exists. The original Fast Startup value was HiberbootEnabled=1.
+
+**Guarded action performed on PHA at 06:18 VN:** saved the original Fast Startup DWORD and precise restore command to C:\ProgramData\QS3D\GladeGPUQA\incident-evidence\fast-startup-rollback-20261115.json with SHA256 **93B7B661E0FFD31CDE4B0587DD39E9D49B0CF9186920395ECAFC533B1A72CE5E**. Changed ONLY the registry value HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power\HiberbootEnabled from 1 to 0, read back 0, verified boot timestamp 06:14:18 unchanged, and Qualcomm Wi-Fi still Up at 390 Mbps. No restart, driver/network/GPU/BIOS setting change or removal of hibernation files.
+
+This removes a documented failing Fast Startup path for future shutdown/startup. It does NOT prove unexpected reboot or PCIe root-port WHEA17 issues are fixed. The manual rollback command is in the protected local receipt; do not re-enable Fast Startup blindly because this feature repeatedly failed. No reboot just to validate it.
+
+The updated read-only incident collector now captures power.fastStartupEnabled, power.fastStartupRawValue, and power.kernelBoot29Last72h with latest Event29 error status. Keep hardware GPU smoke automatically blocked until at least 24h without Event41/6008 and PCIe WHEA17 frequency is safe. Issue #17 stays OPEN.
+
+References:
+- https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/event-id-41-restart
+- https://learn.microsoft.com/en-us/windows/configuration/unified-write-filter/hibernate-once-resume-many-horm
+- https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/fast-startup-causes-system-hibernation-shutdown-fail

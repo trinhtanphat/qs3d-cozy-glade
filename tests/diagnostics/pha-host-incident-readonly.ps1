@@ -24,6 +24,11 @@ function Read-Events([int]$Id, [datetime]$From) {
 
 $power41 = @(Read-Events 41 $now.AddHours(-48))
 $unclean6008 = @(Read-Events 6008 $now.AddHours(-48))
+$fastStartupErrors = @(Read-Events 29 $now.AddDays(-3) | Where-Object {
+  $_.ProviderName -eq 'Microsoft-Windows-Kernel-Boot'
+})
+$fastStartupKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
+$fastStartupValue = (Get-ItemProperty -Path $fastStartupKey -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled
 $whea17All = @(Read-Events 17 $now.AddHours(-6) | Where-Object {
   $_.ProviderName -eq 'Microsoft-Windows-WHEA-Logger'
 })
@@ -111,6 +116,13 @@ $report = [ordered]@{
     latestPciError = $wheaExample
   }
   power = [ordered]@{
+    fastStartupEnabled = if ($null -ne $fastStartupValue) { [bool]$fastStartupValue } else { $null }
+    fastStartupRawValue = $fastStartupValue
+    kernelBoot29Last72h = $fastStartupErrors.Count
+    lastKernelBoot29 = if ($fastStartupErrors.Count) { [ordered]@{
+      observed = $fastStartupErrors[0].TimeCreated.ToString('o')
+      failureStatus = if ($fastStartupErrors[0].Message -match '0x[0-9a-fA-F]{8}') { $matches[0] } else { 'unavailable' }
+    }} else { $null }
     plan = [string]((powercfg /getactivescheme) -join ' ')
     sleepSettingsReadOnly = @((powercfg /query SCHEME_CURRENT SUB_SLEEP))
     pcieSettingsReadOnly = @((powercfg /query SCHEME_CURRENT SUB_PCIEXPRESS))
@@ -138,3 +150,5 @@ Write-Output ('EVENT6008_48H=' + $unclean6008.Count)
 Write-Output ('WHEA17_60M=' + $wheaLastHour.Count)
 Write-Output ('BATTERY_WIN32_COUNT=' + $battery.Count)
 Write-Output ('WER_141_RECORDS=' + $wer.Count)
+Write-Output ('FAST_STARTUP_ENABLED=' + $report.power.fastStartupEnabled)
+Write-Output ('KERNEL_BOOT29_LAST72H=' + $fastStartupErrors.Count)
