@@ -328,3 +328,25 @@ Because this is a safety harness change only, it does not fix PHA hardware. Issu
 The checked-in SHA256-verified GPU safety module and integrated GPU harness were separately downloaded from branch commit 5d06f2ded6dc4baa2c5478ac46e09b33e9de5a58 to DESKTOP-PHA1S90. Module SHA256: 5EBFBD1CF898A633EF48672472A8CA2ECF2ADF588D40AD7823228BBB45237BF7; harness SHA256: 1805F0679236E4C97ECB118F3EAD0AA5968E4CD700757830F04F61D9FFD14A54. Standalone read-only check returned safe:false, uptime 13 min, 5 Kernel-Power 41, 5 EventLog 6008, 86 WHEA17/hour.
 
 The full integrated harness then exited with EXPECTED code 3 (GPU_HOST_PREFLIGHT_BLOCKED), emitted NO_GPU_BROWSER_LAUNCHED, JSON runs empty, at uptime 13.4 min, 5 unclean restarts and 88 WHEA17/hour. Evidence path: C:\ProgramData\QS3D\GladeGPUQA\host-guard-check-20261114\gpu-hardware-smoke.json. SHA256: F6C918157F5E6CD2915B1A8D6FF9C513976C6333E1FB13AE6B0D89852504B54D. This is PASS for the preventative safety gate, NOT a GPU renderer PASS or a fix for hardware root cause. No Chrome or GPU run launched. Host issue #17 remains OPEN.
+
+## 14 Nov 2026, 20:30–20:37 VN — independent read-only host power/PCIe forensics
+
+Direct PHA investigations (no config modifications) established at least **seven** unexpected Kernel-Power 41 plus matching EventLog 6008 records in 48h (13 Nov ~06:15, 17:41; 14 Nov ~06:03, 14:20, 15:33, 17:04, 20:11). WHEA-Logger 17 corrected PCIe events reached **136 in the preceding 60 minutes**, repeatedly at Intel root port 0:1C:5, with Qualcomm QCA9377 Wi-Fi attached downstream. The current connection relies on that Wi-Fi; Ethernet is disconnected.
+
+The Dell Inspiron 3476 BIOS is 1.16.0 (December 2021), Qualcomm Wi-Fi driver 12.0.0.1118 (2021), Intel UHD 620 driver 31.0.101.2141. Read-only powercfg showed automatic Sleep/Hibernate are already Never and PCIe ASPM already Off for AC/DC; altering them would be an ungrounded change. Win32_Battery returned zero instances, root/wmi BatteryStatus PowerOnline=false RemainingCapacity=0 — inconclusive telemetry requiring physical BIOS/adapter checks.
+
+Critical forensic correction: two Windows Error Reporting Kernel_141 folders had LastWriteTime 14 Nov 20:15, but the original Report.wer EventTime converted from Windows FILETIME was **07 Nov 14:28 and 15:45**. Thus they are historical video-engine timeout reports, NOT two new kernel graphics failures during the latest unclean reboot. Microsoft documents 0x141 as VIDEO_ENGINE_TIMEOUT_DETECTED live dumps; that does not prove the cause of power losses.
+
+A new strictly read-only diagnostic snapshot script under tests/diagnostics/pha-host-incident-readonly.ps1 and physical-recovery runbook under tests/diagnostics/PHA-HARDWARE-RECOVERY.md were created. The script syntax was verified and exercised on WIN11-181 (writes only a JSON evidence file with SHA-256; never touches network/power/driver configuration). Actual PHA provenance-verified execution and report integrity should be recorded separately before final acceptance.
+
+Game production remained healthy and clean at bc5a38ec; issue #17 remains unresolved pending onsite power/adapter/battery and Wi-Fi PCIe hardware investigation.
+
+### 14 November 2026, 20:39–20:40 VN — provenance-verified PHA forensic snapshot
+
+The new read-only snapshot script was downloaded onto DESKTOP-PHA1S90 from exact Git commit 75b860acc80a089a3093e89fa7125e05d20b8753 and SHA-256 matched the QA source: CF2C619861F0C67FAA068F8DACBB2E1AD913DED774DF3E87450843CFF4200FF3. Its PowerShell parser also passed directly on PHA, followed by a successful on-device execution (exit code 0). It writes only a time-stamped JSON evidence file, not Windows configuration.
+
+Evidence: C:\ProgramData\QS3D\GladeGPUQA\incident-evidence\pha-incident-20261114-203956.json
+Evidence SHA-256: 37E30936B2E0913F67835DC4AEC1712A6D08BB4C69B260C52AEFEACBD94CA77A
+Counts emitted by the on-device script: 7 Kernel-Power Event41 and 7 EventLog6008 within 48h, 188 WHEA17 within 60m, Win32_Battery instance count 0, two existing WER 141 reports. Their actual EventTime was verified independently as 7 Nov 2026 (14:28, 15:45), not 14 Nov.
+
+Subsequent read-only PHA inspection commands intermittently timed out (16s and 18s) despite the device being displayed as connected. To protect its unstable Wi-Fi path, no additional hardware diagnosis, Wi-Fi changes, reboot or GPU stress was attempted after these timeouts. The source GitHub issue #17 must remain OPEN pending a safe wired/out-of-band recovery route and onsite power/battery/PCIe checks.
