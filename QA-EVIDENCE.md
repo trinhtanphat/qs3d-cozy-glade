@@ -350,3 +350,13 @@ Evidence SHA-256: 37E30936B2E0913F67835DC4AEC1712A6D08BB4C69B260C52AEFEACBD94CA7
 Counts emitted by the on-device script: 7 Kernel-Power Event41 and 7 EventLog6008 within 48h, 188 WHEA17 within 60m, Win32_Battery instance count 0, two existing WER 141 reports. Their actual EventTime was verified independently as 7 Nov 2026 (14:28, 15:45), not 14 Nov.
 
 Subsequent read-only PHA inspection commands intermittently timed out (16s and 18s) despite the device being displayed as connected. To protect its unstable Wi-Fi path, no additional hardware diagnosis, Wi-Fi changes, reboot or GPU stress was attempted after these timeouts. The source GitHub issue #17 must remain OPEN pending a safe wired/out-of-band recovery route and onsite power/battery/PCIe checks.
+
+## 15 Nov 2026 06:14–06:20 VN — new PHA boot, targeted Fast Startup mitigation
+
+PHA reconnected but rebooted unexpectedly again at 06:14:18 local. Kernel-Power Event41 and EventLog6008 were confirmed; the prior SHA256-verified read-only collector was rerun on PHA at 06:17, writing C:\ProgramData\QS3D\GladeGPUQA\incident-evidence\pha-incident-20261115-061713.json, SHA256 54141AE3386F32B772E8EBBED08DF94E5328D4166B789ADED410F7D6DF4189A4, showing 7 unclean reboot pairs in 48h and 20 WHEA17/hour; WHEA later reached 50/hour. Wi-Fi Qualcomm QCA9377 remained Up at 390 Mbps, Ethernet remained disconnected. Glade production continued at f816906 and health HTTP 200.
+
+Newly identified separately from PCIe faults: Windows Kernel-Boot Event29 logged 5 Fast Startup failures with **0xC000007B** in 3 days (Nov12 12:30; Nov14 06:03, 15:33, 17:04; Nov15 06:14). The most recent Event41 BugcheckCode=0, SleepInProgress=6 and BootAppStatus 3221225595 (0xC000007B). Pagefile exists (3840 MiB) and no volmgr Event45/46/161 was found. Original HiberbootEnabled DWORD was 1.
+
+Guarded on-device mitigation at ~06:18: wrote original value and rollback command to C:\ProgramData\QS3D\GladeGPUQA\incident-evidence\fast-startup-rollback-20261115.json, SHA256 93B7B661E0FFD31CDE4B0587DD39E9D49B0CF9186920395ECAFC533B1A72CE5E. Set ONLY HiberbootEnabled=0, read back 0, verified boot timestamp unchanged and Wi-Fi remained Up. No reboot, Windows power plan, driver, Wi-Fi, GPU, BIOS or hibernation-file changes. This is a correction of a *failing startup path*, not evidence the laptop's power/PCIe root cause is fixed.
+
+Updated read-only collector captures Fast Startup configuration and Kernel-Boot Event29 counts/status for reproducible future diagnosis. Hardware GPU testing remains blocked under safety gate until the machine is stable. GitHub issue #17 remains OPEN pending physical Dell adapter/battery/DC jack and QCA9377 PCIe checks with verified backup connectivity.
