@@ -322,3 +322,9 @@ Read-only logs showed 375 corrected WHEA 17 events in an approximately seven-hou
 QA on WIN11-181: npm test **140/140 PASS** (8 new safety tests) and Node syntax checks PASS. PHA Windows host must be observed in read-only mode; no driver changes, reboot, BIOS edits, Wi-Fi reset, GPU stress or power plan modifications were attempted. Existing game production at 26ff028d remained HTTP 200, Git clean and served independently.
 
 Because this is a safety harness change only, it does not fix PHA hardware. Issue #17 remains OPEN and requires physical or out-of-band investigation; physical hardware long-run certification is not possible on this currently unstable machine.
+
+### PHA real-device safety-gate acceptance (14 Nov 2026 ~20:24 VN)
+
+The checked-in SHA256-verified GPU safety module and integrated GPU harness were separately downloaded from branch commit 5d06f2ded6dc4baa2c5478ac46e09b33e9de5a58 to DESKTOP-PHA1S90. Module SHA256: 5EBFBD1CF898A633EF48672472A8CA2ECF2ADF588D40AD7823228BBB45237BF7; harness SHA256: 1805F0679236E4C97ECB118F3EAD0AA5968E4CD700757830F04F61D9FFD14A54. Standalone read-only check returned safe:false, uptime 13 min, 5 Kernel-Power 41, 5 EventLog 6008, 86 WHEA17/hour.
+
+The full integrated harness then exited with EXPECTED code 3 (GPU_HOST_PREFLIGHT_BLOCKED), emitted NO_GPU_BROWSER_LAUNCHED, JSON runs empty, at uptime 13.4 min, 5 unclean restarts and 88 WHEA17/hour. Evidence path: C:\ProgramData\QS3D\GladeGPUQA\host-guard-check-20261114\gpu-hardware-smoke.json. SHA256: F6C918157F5E6CD2915B1A8D6FF9C513976C6333E1FB13AE6B0D89852504B54D. This is PASS for the preventative safety gate, NOT a GPU renderer PASS or a fix for hardware root cause. No Chrome or GPU run launched. Host issue #17 remains OPEN.
