@@ -13,17 +13,17 @@ const WINDOWS_QUERY = [
   '$now=Get-Date',
   '$null=Get-WinEvent -ListLog System -ErrorAction Stop',
   '$boot=(Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime',
-  'function Get-WindowEvents([int]$eventId, [datetime]$from) {'
-  '  try {'
-  '    return @(Get-WinEvent -FilterHashtable @{LogName="System";Id=$eventId;StartTime=$from} -ErrorAction Stop)'
-  '  } catch {'
+  'function Get-WindowEvents([int]$eventId, [datetime]$from) {',
+  '  try {',
+  '    return @(Get-WinEvent -FilterHashtable @{LogName="System";Id=$eventId;StartTime=$from} -ErrorAction Stop)',
+  '  } catch {',
   "    if ($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*') { return @() }",
-  '    throw'
-  '  }'
-  '}'
-  '$reboots=@(Get-WindowEvents 41 $now.AddHours(-24))'
-  '$shutdowns=@(Get-WindowEvents 6008 $now.AddHours(-24))'
-  "$pci=@(Get-WindowEvents 17 $now.AddMinutes(-60) | Where-Object {$_.ProviderName -eq 'Microsoft-Windows-WHEA-Logger'})"
+  '    throw',
+  '  }',
+  '}',
+  '$reboots=@(Get-WindowEvents 41 $now.AddHours(-24))',
+  '$shutdowns=@(Get-WindowEvents 6008 $now.AddHours(-24))',
+  "$pci=@(Get-WindowEvents 17 $now.AddMinutes(-60) | Where-Object {$_.ProviderName -eq 'Microsoft-Windows-WHEA-Logger'})",
   '$info=@{',
   "  observedAt=$now.ToString('o')",
   "  bootAt=$boot.ToString('o')",
