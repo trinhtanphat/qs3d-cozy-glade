@@ -57,3 +57,26 @@ Three consecutive hardware checks against https://glade.qs3d.site/ then exited 0
 Local artifact: C:\ProgramData\QS3D\GladeGPUQA\pr15-final-3run\gpu-hardware-smoke.json, SHA-256 **F486788188093C30A9A458BB263F3B72B04BAAE85904A65CB8527FCFEFAADEBA**. The Intel machine was not rebooted; its boot time remained 14 Nov 2026 14:20:27, with about 3.1 GiB RAM available after completion. The earlier conservative-flags A/B run also passed 2/2, for **5/5 consecutive conservative-flags hardware successes** across those two batches.
 
 Acceptance is limited to Intel UHD 620, Chrome 157 / ANGLE D3D11, Eco preset and 390x844 emulated mobile viewport. Stress runs using aggressive GPU overrides can still trigger Chromium's context-blocking guard; don't use those overrides as the default acceptance profile. This does not prove every real mobile GPU or many-hour operational endurance.
+
+## GPU host safety preflight (automatic, no override)
+
+Before launching any Chrome GPU test, the smoke harness runs a strictly read-only Windows System Event Log check from tests/e2e/gpu-host-safety.cjs. It does not change registry, network adapters, drivers, Windows power plans, scheduled tasks or firmware.
+
+GPU launch is BLOCKED unless all criteria are met:
+- Windows uptime >= 120 minutes.
+- No Kernel-Power Event 41 in the previous 24 hours.
+- No EventLog 6008 in the previous 24 hours.
+- At most 4 WHEA-Logger Event 17 corrected PCIe errors in the previous 60 minutes.
+- Windows System event log and required metrics are readable. Incomplete checks fail closed.
+
+A blocked test writes a JSON report including hostSafety.evidence, hostSafety.problems, and an empty runs array to QA_RESULTS_DIR/gpu-hardware-smoke.json, prints GPU_HOST_PREFLIGHT_BLOCKED and NO_GPU_BROWSER_LAUNCHED and exits with status 3. Exit 3 means hardware QA was NOT ATTEMPTED: it is neither scene failure nor GPU acceptance PASS. Do not bypass the gate while the host is remotely managed using its affected Wi-Fi path.
+
+URGENT PHA finding (14 Nov 2026 ~20:14 VN): DESKTOP-PHA1S90 rebooted unexpectedly again at 20:10:53 and Event 41 / EventLog 6008 appeared at 20:11. There are at least five distinct unclean restarts on 14 Nov (06:03, 14:20, 15:33, 17:04, 20:11). Latest Kernel-Power Event 41 reported BugcheckCode 0; some prior ones had SleepInProgress != 0. No new Windows minidump was found for that day. In the observed seven-hour period, WHEA-Logger Event 17 appeared 375 times, with approximately 50 within ten minutes after the latest reboot. The affected PCIe root port PCIROOT(0)#PCI(1C05) / Intel 9D15 hosts the Qualcomm QCA9377 Wi-Fi adapter as verified via Windows PnP location paths. This identifies an unreliable PCIe link but does NOT prove Wi-Fi caused sudden system power losses. Sleep/hibernate transitions, AC power, mainboard, firmware and other physical causes remain possible.
+
+RECOVERY: Preserve Wi-Fi connectivity. With physical access or a separate operational wired/out-of-band recovery link, collect crash/power diagnostics, inspect supply and cooling, then inspect Wi-Fi module, slot and driver/BIOS settings as warranted. Do not disable/reset Wi-Fi, alter PCIe power management, reboot or stress Intel GPU over the currently unstable remote path. See GitHub issue #17. A prior 5/5 Intel UHD 620 D3D11 short smoke result documents rendering in an earlier interval but is NOT evidence of current host stability.
+
+Read-only preflight without launching Chrome:
+
+    node -e "console.log(JSON.stringify(require('./tests/e2e/gpu-host-safety.cjs').inspectWindowsHost(),null,2))"
+
+Unit tests are in tests/gpu-host-safety.test.mjs, covering healthy hosts, recurrent reboot, WHEA storm, missing permissions and fail-closed inspection.

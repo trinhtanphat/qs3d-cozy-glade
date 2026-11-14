@@ -11,6 +11,7 @@
 const { chromium } = require('playwright-core');
 const fs = require('node:fs');
 const path = require('node:path');
+const { inspectWindowsHost } = require('./gpu-host-safety.cjs');
 
 const url = process.env.GAME_URL || 'https://glade.qs3d.site/';
 const chromeBin = process.env.CHROME_BIN ||
@@ -150,6 +151,17 @@ async function runOnce(number) {
 }
 
 (async () => {
+  // Strictly read-only preflight. Do not launch Chrome on an unstable host.
+  const hostSafety = inspectWindowsHost();
+  report.hostSafety = hostSafety;
+  if (!hostSafety.safe) {
+    report.failure = 'GPU test blocked for host safety: ' + hostSafety.problems.join('; ');
+    write();
+    console.error('GPU_HOST_PREFLIGHT_BLOCKED: ' + report.failure);
+    console.error('NO_GPU_BROWSER_LAUNCHED REPORT=' + output);
+    process.exitCode = 3;
+    return;
+  }
   let pass = true;
   for (let i = 1; i <= runs; i++) {
     if (!(await runOnce(i))) pass = false;
