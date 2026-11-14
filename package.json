@@ -36,6 +36,7 @@
     "test:e2e:status": "node tests/e2e/autosave-status-gameplay.mjs",
     "test:e2e:gpu": "node tests/e2e/hardware-gpu-smoke.cjs",
     "test:e2e:graphics-recovery": "node tests/e2e/webgl-recovery-gameplay.mjs",
+    "test:e2e:endurance": "node tests/e2e/scene-endurance.mjs",
     "preview": "python3 -m http.server 8080"
   },
   "dependencies": {

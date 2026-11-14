@@ -294,3 +294,19 @@ The game previously displayed a static error on renderer initialization failure 
 **Critical environment warning:** On 14 Nov 2026, DESKTOP-PHA1S90 independently rebooted abnormally at about 17:04 local time. Windows System log shows Kernel-Power Event 41, EventLog 6008 and WHEA Logger 17 PCIe Root Port corrected errors. Hardware stability is a separate unresolved issue. No further GPU stress, reboot, Wi-Fi reset or driver changes were performed during this QA. Physical iOS/Android devices and multi-hour hardware endurance remain unverified. Earlier Intel UHD 620 smoke PASS is not comprehensive host stability proof.
 
 No modification to WIN11-181 Session 2, other QS3D apps, production tunnel or GitHub Actions.
+
+## 14/11/2026 — 3-minute isolated browser endurance QA (production)
+
+A reusable, **browser-context-only** endurance script was added at tests/e2e/scene-endurance.mjs with instructions in tests/e2e/BROWSER-ENDURANCE-QA.md. It runs with npm run test:e2e:endurance and accepts GAME_URL, CHROME_CDP_URL, QA_DURATION_MS (30s–30m), QA_SAMPLE_MS (5s–60s) and QA_RESULTS_DIR. It never uses GitHub Actions or writes to production backend; test scene saves are isolated to a throwaway browser context.
+
+**Actual production URL acceptance on WIN11-181 using separate Chrome 157 CDP context: PASS (exit code 0).**
+- Production URL: https://glade.qs3d.site/; request HTTP 200.
+- Created a real cottage using mouse clicks in Empty Meadow, changed time to 11:15 and verified browser-local autosave before starting the timer.
+- **180 seconds / 12 samples** every 15 seconds: the game remained ready, no WebGL context lost, 1 cottage remained, preset remained Empty Meadow, autosave remained saved, 110 draw calls and ~466111 triangles in the test context, no page exceptions or failed network requests.
+- Browser JavaScript heap across samples: **62.12–68.22 MiB**, no upward runaway in this bounded interval.
+- WIN11-181 browser used a software-backed rendering path; **FPS=4 for this machine**, not a measurement of Intel GPU hardware or the player's device. This is a reliability test, not a hardware-performance endorsement.
+- After 180 seconds, checked the local save and reloaded exactly once: same 1 cottage, time 11.25, no lost context. **success:true**, 0 page errors, 0 failed network requests.
+- Evidence: C:\ProgramData\QS3D\GladeDemo\pr18-browser-endurance\scene-endurance.json, SHA256 **6C6D9A8CC10C6AE1E0136081C33D68FC012CD0E6485FC2C8B02EF7307D60F1A9**.
+- Only new Chrome QA context was closed, existing Session 0 Chrome/157.0.8103.51 survived; Session 2, other QS3D sites, production tunnel and PHA services were not touched.
+
+**Separate hardware-host reliability:** Read-only diagnostics on DESKTOP-PHA1S90 found at least **four** Kernel-Power 41 and matching EventLog 6008 pairs on 14 Nov 2026 (approximately 06:03, 14:20, 15:33, 17:04 local). Repeated WHEA 17 names root port 0:1C:5 (Intel 9D15); PnP location-path mapping shows Qualcomm QCA9377 802.11ac Wi-Fi is attached at PCIROOT(0)#PCI(1C05)#PCI(0000). This narrows the PCIe link where corrected errors are occurring, **but does not prove Wi-Fi caused the abnormal power losses**. No reboot, Wi-Fi reset, PCIe changes or new GPU stress attempts performed. Follow-up issue #17 remains open pending safe host-level diagnosis. This browser endurance result **does not certify physical iOS/Android phones, Intel GPU endurance or multi-hour server uptime**.
