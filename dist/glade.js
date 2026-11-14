@@ -37188,6 +37188,7 @@ void main() {
       history,
       key = SCENE_AUTOSAVE_KEY,
       delayMs = 1800,
+      onStatusChange = null,
       setTimer = (fn, ms) => setTimeout(fn, ms),
       clearTimer = (id) => clearTimeout(id)
     } = {}) {
@@ -37201,6 +37202,20 @@ void main() {
       this.timer = null;
       this.lastError = null;
       this.lastSavedAt = null;
+      this.onStatusChange = onStatusChange;
+      this.status = "idle";
+    }
+    _notify(state) {
+      this.status = state;
+      try {
+        this.onStatusChange?.({
+          status: state,
+          savedAt: this.lastSavedAt,
+          error: this.lastError,
+          pending: !!this.pending
+        });
+      } catch {
+      }
     }
     read() {
       if (!this.storage) return null;
@@ -37259,6 +37274,7 @@ void main() {
       if (this.timer !== null) this.clearTimer(this.timer);
       this.timer = null;
       this.pending = null;
+      this._notify(this.lastError ? "error" : this.lastSavedAt ? "saved" : "idle");
     }
     discardPresetSlot(presetId) {
       const key = sceneSlotKey(presetId);
@@ -37275,9 +37291,16 @@ void main() {
     schedule(capture, presetId = "qs3d-island") {
       if (typeof capture !== "function") return false;
       this.pending = { capture, presetId };
-      if (!this.storage) return false;
       if (this.timer !== null) this.clearTimer(this.timer);
+      this.timer = null;
+      if (!this.storage) {
+        this.lastError = new Error("Browser storage is unavailable");
+        this._notify("error");
+        return false;
+      }
+      this.lastError = null;
       this.timer = this.setTimer(() => this.flush(), this.delayMs);
+      this._notify("pending");
       return true;
     }
     flush() {
@@ -37288,6 +37311,7 @@ void main() {
       if (!this.pending) return false;
       if (!this.storage) {
         this.lastError = new Error("Browser storage is unavailable");
+        this._notify("error");
         return false;
       }
       const { capture, presetId } = this.pending;
@@ -37312,10 +37336,12 @@ void main() {
         this.storage.setItem(this.key, text);
         this.lastSavedAt = savedAt;
         this.lastError = null;
+        this._notify("saved");
         return true;
       } catch (error) {
         this.lastError = error;
         if (!this.pending) this.pending = { capture, presetId };
+        this._notify("error");
         return false;
       }
     }
@@ -37326,9 +37352,11 @@ void main() {
       try {
         this.storage?.removeItem(this.key);
         this.lastError = null;
+        this._notify("idle");
         return true;
       } catch (error) {
         this.lastError = error;
+        this._notify("error");
         return false;
       }
     }
@@ -38865,6 +38893,20 @@ void main() {
         this.callbacks.onResetPreset?.();
       });
       resetPresetBtn.dataset.action = "reset-preset";
+      const saveStatus = document.createElement("span");
+      saveStatus.className = "tg-save-status";
+      saveStatus.dataset.autosaveStatus = "idle";
+      saveStatus.setAttribute("role", "status");
+      saveStatus.setAttribute("aria-live", "polite");
+      saveStatus.setAttribute("aria-atomic", "true");
+      saveStatus.title = "Tr\u1EA1ng th\xE1i t\u1EF1 l\u01B0u b\u1EA3n \u0111\u1ED3 tr\xEAn thi\u1EBFt b\u1ECB n\xE0y";
+      saveStatus.textContent = "\u25CB Ch\u01B0a l\u01B0u";
+      const saveRetryBtn = this._makeIconBtn(ICONS.reset, "Th\u1EED l\u1EA1i", "Th\u1EED t\u1EF1 l\u01B0u b\u1EA3n \u0111\u1ED3 l\u1EA7n n\u1EEFa", () => {
+        this._tick();
+        this.callbacks.onRetryAutosave?.();
+      });
+      saveRetryBtn.dataset.action = "retry-autosave";
+      saveRetryBtn.hidden = true;
       const divider1 = document.createElement("span");
       divider1.className = "tg-divider";
       const undoBtn = this._makeIconBtn(ICONS.undo, "Ho\xE0n t\xE1c", "Ho\xE0n t\xE1c (Ctrl+Z / Z)", () => {
@@ -38909,7 +38951,7 @@ void main() {
         this.callbacks.onLibraryOpen?.();
       });
       libraryBtn.dataset.action = "library";
-      topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, libraryBtn, fileInput);
+      topLeft.append(presetWrap, saveStatus, saveRetryBtn, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, libraryBtn, fileInput);
       const topRightWrap = document.createElement("div");
       topRightWrap.className = "tg-top-right-wrap";
       const topRight = document.createElement("div");
@@ -39121,6 +39163,8 @@ void main() {
         hud,
         topLeft,
         presetSelect,
+        saveStatus,
+        saveRetryBtn,
         undoBtn,
         redoBtn,
         topRightWrap,
@@ -39889,6 +39933,26 @@ void main() {
     /**
      * Enables / disables Undo & Redo buttons cleanly.
      */
+    setAutosaveState({ status = "idle", savedAt = null } = {}) {
+      const statusEl = this._els.saveStatus;
+      const retry = this._els.saveRetryBtn;
+      if (!statusEl || !retry) return;
+      const next = ["idle", "pending", "saved", "error"].includes(status) ? status : "idle";
+      const labels = {
+        idle: "\u25CB Ch\u01B0a l\u01B0u",
+        pending: "\u2026 \u0110ang l\u01B0u",
+        saved: "\u2713 \u0110\xE3 l\u01B0u",
+        error: "\u26A0 L\u1ED7i l\u01B0u"
+      };
+      const detail = next === "saved" && Number.isFinite(savedAt) ? ` l\xFAc ${new Date(savedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "";
+      const label = labels[next] + detail;
+      if (statusEl.dataset.autosaveStatus !== next || statusEl.textContent !== label) {
+        statusEl.dataset.autosaveStatus = next;
+        statusEl.textContent = label;
+      }
+      statusEl.title = next === "error" ? "Kh\xF4ng t\u1EF1 l\u01B0u \u0111\u01B0\u1EE3c. H\xE3y ch\u1ECDn Th\u1EED l\u1EA1i ho\u1EB7c L\u01B0u \u0111\u1EC3 xu\u1EA5t JSON d\u1EF1 ph\xF2ng." : "Tr\u1EA1ng th\xE1i t\u1EF1 l\u01B0u ri\xEAng cho b\u1EA3n \u0111\u1ED3 hi\u1EC7n t\u1EA1i";
+      retry.hidden = next !== "error";
+    }
     setHistoryState(canUndo, canRedo) {
       if (this._els.undoBtn) {
         this._els.undoBtn.disabled = !canUndo;
@@ -42663,6 +42727,13 @@ void main() {
       },
       onExportJSON: () => hudCallbacks.onExport(),
       onLibraryOpen: () => sceneLibraryPanel?.open(),
+      onRetryAutosave: () => {
+        if (sceneAutosave?.flush()) {
+          hud?.showToast?.("\u0110\xE3 l\u01B0u thi\u1EBFt k\u1EBF tr\xEAn thi\u1EBFt b\u1ECB n\xE0y.", 2800);
+        } else {
+          hud?.showToast?.("Ch\u01B0a l\u01B0u \u0111\u01B0\u1EE3c. H\xE3y d\xF9ng L\u01B0u \u0111\u1EC3 t\u1EA3i t\u1EC7p JSON d\u1EF1 ph\xF2ng.", 5e3);
+        }
+      },
       onImport: async (file) => {
         if (!file) return;
         audio.unlock?.();
@@ -42771,7 +42842,12 @@ void main() {
       storage = window.localStorage;
     } catch {
     }
-    sceneAutosave = new SceneAutosave({ storage, history });
+    sceneAutosave = new SceneAutosave({
+      storage,
+      history,
+      onStatusChange: ({ status, savedAt }) => hud?.setAutosaveState?.({ status, savedAt })
+    });
+    if (!storage) hud?.setAutosaveState?.({ status: "error" });
     sceneLibraryPanel = installSceneLibraryPanel({
       autosave: sceneAutosave,
       history,
@@ -42793,9 +42869,11 @@ void main() {
         hud.showToast?.("\u0110\xE3 kh\xF4i ph\u1EE5c thi\u1EBFt k\u1EBF t\u1EF1 l\u01B0u tr\xEAn thi\u1EBFt b\u1ECB n\xE0y.", 3200);
       }).catch((error) => {
         console.warn("[qs3d] Autosave is damaged; opening a fresh scene:", error);
+        hud.setAutosaveState?.({ status: "error" });
         hud.showToast?.("B\u1EA3n t\u1EF1 l\u01B0u kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c. B\u1EA1n v\u1EABn c\xF3 th\u1EC3 m\u1EDF t\u1EC7p JSON.", 4200);
       });
     } else if (sceneAutosave.lastError) {
+      hud.setAutosaveState?.({ status: "error" });
       hud.showToast?.("Kh\xF4ng th\u1EC3 \u0111\u1ECDc b\u1EA3n t\u1EF1 l\u01B0u tr\xEAn thi\u1EBFt b\u1ECB.", 3200);
     }
     window.addEventListener("pagehide", () => sceneAutosave?.flush());

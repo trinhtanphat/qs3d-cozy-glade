@@ -15,7 +15,7 @@ export function sceneSlotKey(presetId) {
 
 export class SceneAutosave {
   constructor({ storage = null, history, key = SCENE_AUTOSAVE_KEY,
-    delayMs = 1800, setTimer = (fn, ms) => setTimeout(fn, ms),
+    delayMs = 1800, onStatusChange = null, setTimer = (fn, ms) => setTimeout(fn, ms),
     clearTimer = (id) => clearTimeout(id) } = {}) {
     this.storage = storage;
     this.history = history;
@@ -27,6 +27,16 @@ export class SceneAutosave {
     this.timer = null;
     this.lastError = null;
     this.lastSavedAt = null;
+    this.onStatusChange = onStatusChange;
+    this.status = 'idle';
+  }
+
+  _notify(state) {
+    this.status = state;
+    try {
+      this.onStatusChange?.({ status: state, savedAt: this.lastSavedAt,
+        error: this.lastError, pending: !!this.pending });
+    } catch { /* Observers must never break saving or gameplay. */ }
   }
 
   read() {
@@ -89,6 +99,7 @@ export class SceneAutosave {
     if (this.timer !== null) this.clearTimer(this.timer);
     this.timer = null;
     this.pending = null;
+    this._notify(this.lastError ? 'error' : this.lastSavedAt ? 'saved' : 'idle');
   }
 
   discardPresetSlot(presetId) {
@@ -103,9 +114,16 @@ export class SceneAutosave {
     // Keep the unsaved scene in memory even if storage is blocked. Callers
     // must be able to warn before switching to another map.
     this.pending = { capture, presetId };
-    if (!this.storage) return false;
     if (this.timer !== null) this.clearTimer(this.timer);
+    this.timer = null;
+    if (!this.storage) {
+      this.lastError = new Error('Browser storage is unavailable');
+      this._notify('error');
+      return false;
+    }
+    this.lastError = null;
     this.timer = this.setTimer(() => this.flush(), this.delayMs);
+    this._notify('pending');
     return true;
   }
 
@@ -117,6 +135,7 @@ export class SceneAutosave {
     if (!this.pending) return false;
     if (!this.storage) {
       this.lastError = new Error('Browser storage is unavailable');
+      this._notify('error');
       return false;
     }
     const { capture, presetId } = this.pending;
@@ -139,6 +158,7 @@ export class SceneAutosave {
       this.storage.setItem(this.key, text);
       this.lastSavedAt = savedAt;
       this.lastError = null;
+      this._notify('saved');
       return true;
     } catch (error) {
       // Private browsing, blocked storage, quota and JSON failures must never
@@ -147,6 +167,7 @@ export class SceneAutosave {
       // Retain the intended snapshot for explicit retry or manual JSON export.
       // Never silently mark a failed checkpoint as persisted.
       if (!this.pending) this.pending = { capture, presetId };
+      this._notify('error');
       return false;
     }
   }
@@ -158,9 +179,11 @@ export class SceneAutosave {
     try {
       this.storage?.removeItem(this.key);
       this.lastError = null;
+      this._notify('idle');
       return true;
     } catch (error) {
       this.lastError = error;
+      this._notify('error');
       return false;
     }
   }
