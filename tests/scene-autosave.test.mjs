@@ -159,3 +159,96 @@ test('old version-1 single autosave stays readable after enabling map slots',asy
  s.schedule(()=>restored,'qs3d-island');s.flush();
  assert.ok(s.readPresetSlot('qs3d-island'),'legacy checkpoint migrates to per-map slot');
 });
+
+test('storage quota on a new slot does not corrupt latest map or drop pending edits',()=>{
+ const backing=makeStorage();
+ const manager=makeManager(backing);
+ manager.schedule(()=>makeScene(9),'qs3d-island');
+ assert.equal(manager.flush(),true);
+ const prevJSON=backing.getItem(SCENE_AUTOSAVE_KEY);
+ const meadowSlot=sceneSlotKey('empty-meadow');
+ const quota={
+   getItem:(k)=>backing.getItem(k),
+   removeItem:(k)=>backing.removeItem(k),
+   setItem:(k,v)=>{ if(k===meadowSlot)throw Error('QuotaExceededError');backing.setItem(k,v); }
+ };
+ manager.storage=quota;
+ manager.schedule(()=>makeScene(20),'empty-meadow');
+ assert.equal(manager.flush(),false);
+ assert.equal(backing.getItem(SCENE_AUTOSAVE_KEY),prevJSON,'never advance global pointer to a scene whose slot failed');
+ assert.equal(backing.getItem(meadowSlot),null);
+ assert.equal(manager.pending?.presetId,'empty-meadow','retain unsaved changes in memory');
+ manager.storage=backing;
+ assert.equal(manager.flush(),true,'retry after quota recovery');
+ assert.equal(manager.pending,null);
+ assert.equal(manager.read().presetId,'empty-meadow');
+ assert.ok(manager.readPresetSlot('empty-meadow'));
+});
+test('failure updating latest-scene pointer keeps per-map slot for recovery and retries',()=>{
+ const store=makeStorage();
+ const s=makeManager(store);
+ s.schedule(()=>makeScene(8),'qs3d-island');s.flush();
+ const oldLatest=store.getItem(SCENE_AUTOSAVE_KEY);
+ s.storage={
+   getItem:k=>store.getItem(k),
+   setItem:(k,v)=>{ if(k===SCENE_AUTOSAVE_KEY)throw Error('quota on latest pointer');store.setItem(k,v); },
+   removeItem:k=>store.removeItem(k)
+ };
+ s.schedule(()=>makeScene(14),'empty-meadow');
+ assert.equal(s.flush(),false);
+ assert.equal(store.getItem(SCENE_AUTOSAVE_KEY),oldLatest);
+ assert.ok(s.readPresetSlot('empty-meadow'),'slot saved even if global pointer fails');
+ assert.equal(s.pending?.presetId,'empty-meadow');
+ s.storage=store;
+ assert.equal(s.flush(),true);
+ assert.equal(s.read().presetId,'empty-meadow');
+});
+test('browser with blocked storage retains the unsaved snapshot for warning before scene switch',()=>{
+ const manager=makeManager(null);
+ let captured=false;
+ assert.equal(manager.schedule(()=>{captured=true;return makeScene();},'empty-meadow'),false);
+ assert.equal(manager.pending?.presetId,'empty-meadow');
+ assert.equal(manager.flush(),false);
+ assert.ok(manager.lastError);
+ assert.equal(captured,false);
+ manager.cancelPending();
+ assert.equal(manager.pending,null);
+});
+
+test('missing healthy slot clears stale quota error from another map',()=>{
+ const s=makeManager(makeStorage());
+ s.lastError=new Error('QuotaExceededError on prior map');
+ assert.equal(s.readPresetSlot('empty-meadow'),null);
+ assert.equal(s.lastError,null);
+});
+
+test('boot recovers newest per-map slot if latest pointer failed under quota',()=>{
+ const store=makeStorage();
+ const s=makeManager(store);
+ s.schedule(()=>makeScene(11),'qs3d-island');s.flush();
+ const oldLatest=store.getItem(SCENE_AUTOSAVE_KEY);
+ const newRecord={format:'qs3d-cozy-glade:autosave',version:1,savedAt:Date.now()+5000,
+  presetId:'empty-meadow',sceneJSON:s.history.serializeJSON(makeScene(23))};
+ store.setItem(sceneSlotKey('empty-meadow'),JSON.stringify(newRecord));
+ assert.equal(store.getItem(SCENE_AUTOSAVE_KEY),oldLatest);
+ const chosen=s.mostRecentCheckpoint(['qs3d-island','empty-meadow']);
+ assert.equal(chosen.presetId,'empty-meadow');
+ assert.equal(JSON.parse(chosen.sceneJSON).scene.env.timeOfDay,23);
+});
+test('boot maintains backward compatibility when only v1 legacy pointer exists',()=>{
+ const store=makeStorage(),s=makeManager(store);
+ const record={format:'qs3d-cozy-glade:autosave',version:1,savedAt:42,
+  presetId:'qs3d-island',sceneJSON:s.history.serializeJSON(makeScene(8))};
+ store.setItem(SCENE_AUTOSAVE_KEY,JSON.stringify(record));
+ assert.equal(s.mostRecentCheckpoint(['empty-meadow','qs3d-island']).presetId,'qs3d-island');
+});
+test('bad newest slot is ignored without hiding corrupt-data diagnostic if nothing valid remains',()=>{
+ const store=makeStorage(),s=makeManager(store);
+ store.setItem(sceneSlotKey('empty-meadow'),'{INVALID');
+ assert.equal(s.mostRecentCheckpoint(['empty-meadow','qs3d-island']),null);
+ assert.ok(s.lastError);
+ const snapshot={format:'qs3d-cozy-glade:autosave',version:1,savedAt:100,
+  presetId:'qs3d-island',sceneJSON:s.history.serializeJSON(makeScene(7))};
+ store.setItem(SCENE_AUTOSAVE_KEY,JSON.stringify(snapshot));
+ assert.equal(s.mostRecentCheckpoint(['empty-meadow','qs3d-island']).presetId,'qs3d-island');
+});
