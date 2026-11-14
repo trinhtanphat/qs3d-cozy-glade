@@ -313,6 +313,22 @@ export class HUDController {
     });
     resetPresetBtn.dataset.action = 'reset-preset';
 
+    const saveStatus = document.createElement('span');
+    saveStatus.className = 'tg-save-status';
+    saveStatus.dataset.autosaveStatus = 'idle';
+    saveStatus.setAttribute('role', 'status');
+    saveStatus.setAttribute('aria-live', 'polite');
+    saveStatus.setAttribute('aria-atomic', 'true');
+    saveStatus.title = 'Trạng thái tự lưu bản đồ trên thiết bị này';
+    saveStatus.textContent = '○ Chưa lưu';
+
+    const saveRetryBtn = this._makeIconBtn(ICONS.reset, 'Thử lại', 'Thử tự lưu bản đồ lần nữa', () => {
+      this._tick();
+      this.callbacks.onRetryAutosave?.();
+    });
+    saveRetryBtn.dataset.action = 'retry-autosave';
+    saveRetryBtn.hidden = true;
+
     const divider1 = document.createElement('span');
     divider1.className = 'tg-divider';
 
@@ -365,7 +381,7 @@ export class HUDController {
     });
     libraryBtn.dataset.action = 'library';
 
-    topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, libraryBtn, fileInput);
+    topLeft.append(presetWrap, saveStatus, saveRetryBtn, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, libraryBtn, fileInput);
 
     // =========================================================================
     // 2. TOP-RIGHT ATMOSPHERE, CAMERA & QUALITY BAR
@@ -631,6 +647,8 @@ export class HUDController {
       hud,
       topLeft,
       presetSelect,
+      saveStatus,
+      saveRetryBtn,
       undoBtn,
       redoBtn,
       topRightWrap,
@@ -1500,6 +1518,32 @@ export class HUDController {
   /**
    * Enables / disables Undo & Redo buttons cleanly.
    */
+  setAutosaveState({ status = 'idle', savedAt = null } = {}) {
+    const statusEl = this._els.saveStatus;
+    const retry = this._els.saveRetryBtn;
+    if (!statusEl || !retry) return;
+    const next = ['idle', 'pending', 'saved', 'error'].includes(status) ? status : 'idle';
+    const labels = {
+      idle: '○ Chưa lưu',
+      pending: '… Đang lưu',
+      saved: '✓ Đã lưu',
+      error: '⚠ Lỗi lưu',
+    };
+    const detail = next === 'saved' && Number.isFinite(savedAt)
+      ? ` lúc ${new Date(savedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+      : '';
+    const label = labels[next] + detail;
+    // Avoid repeated screen-reader announcements on every slider movement.
+    if (statusEl.dataset.autosaveStatus !== next || statusEl.textContent !== label) {
+      statusEl.dataset.autosaveStatus = next;
+      statusEl.textContent = label;
+    }
+    statusEl.title = next === 'error'
+      ? 'Không tự lưu được. Hãy chọn Thử lại hoặc Lưu để xuất JSON dự phòng.'
+      : 'Trạng thái tự lưu riêng cho bản đồ hiện tại';
+    retry.hidden = next !== 'error';
+  }
+
   setHistoryState(canUndo, canRedo) {
     if (this._els.undoBtn) {
       this._els.undoBtn.disabled = !canUndo;

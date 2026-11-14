@@ -1001,3 +1001,43 @@
   .tg-library-actions { flex-direction: column; }
   .tg-library-actions button { width: 100%; }
 }
+
+/* Compact, accessible browser-local autosave state and explicit retry. */
+.tg-save-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 3px 9px;
+  border: 1px solid rgba(96, 90, 76, .18);
+  background: rgba(255, 251, 244, .72);
+  color: #625747;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.tg-save-status[data-autosave-status="pending"] {
+  color: #795728;
+  background: rgba(247, 227, 181, .76);
+}
+.tg-save-status[data-autosave-status="saved"] {
+  color: #27553c;
+  background: rgba(218, 237, 217, .87);
+}
+.tg-save-status[data-autosave-status="error"] {
+  color: #923c2b;
+  background: #f9dcd5;
+  border-color: #e8aa9b;
+}
+.tg-save-status + .tg-btn[data-action="retry-autosave"] {
+  border-color: #ca8f7d;
+  color: #7e3425;
+  background: rgba(255, 246, 237, .95);
+}
+@media (max-width: 760px) {
+  .tg-save-status { min-height: 30px; font-size: 10.5px; padding: 3px 7px; }
+}

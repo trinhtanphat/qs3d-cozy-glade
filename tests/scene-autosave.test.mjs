@@ -252,3 +252,69 @@ test('bad newest slot is ignored without hiding corrupt-data diagnostic if nothi
  store.setItem(SCENE_AUTOSAVE_KEY,JSON.stringify(snapshot));
  assert.equal(s.mostRecentCheckpoint(['empty-meadow','qs3d-island']).presetId,'qs3d-island');
 });
+
+test('autosave emits actual idle->pending->saved notifications with timestamp',()=>{
+ const states=[],clock={setTimer:()=>1,clearTimer:()=>{}};
+ const manager=new SceneAutosave({storage:makeStorage(),history:new HistoryManager(),
+   onStatusChange:s=>states.push({...s}),...clock});
+ assert.equal(manager.status,'idle');
+ assert.equal(manager.schedule(()=>makeScene(13.5),'qs3d-island'),true);
+ assert.equal(states[0].status,'pending');
+ assert.equal(states[0].pending,true);
+ assert.equal(manager.flush(),true);
+ assert.equal(states[1].status,'saved');
+ assert.ok(states[1].savedAt>0);
+ assert.equal(states[1].pending,false);
+ assert.equal(manager.status,'saved');
+});
+test('quota error reports failure and retry reports success only after real write',()=>{
+ const data=makeStorage(),statuses=[];
+ let denied=true;
+ const storage={getItem:k=>data.getItem(k),removeItem:k=>data.removeItem(k),
+  setItem:(k,v)=>{if(denied)throw Error('QuotaExceededError');data.setItem(k,v)}};
+ const manager=new SceneAutosave({storage,history:new HistoryManager(),
+   onStatusChange:s=>statuses.push(s.status),
+   setTimer:()=>1,clearTimer:()=>{}});
+ manager.schedule(()=>makeScene(22),'empty-meadow');
+ assert.equal(manager.flush(),false);
+ assert.deepEqual(statuses,['pending','error']);
+ assert.ok(manager.pending);
+ assert.equal(manager.lastSavedAt,null);
+ denied=false;
+ assert.equal(manager.flush(),true);
+ assert.deepEqual(statuses,['pending','error','saved']);
+ assert.equal(manager.pending,null);
+ assert.ok(manager.readPresetSlot('empty-meadow'));
+});
+test('storage blocked reports error immediately without inventing saved state',()=>{
+ const statuses=[];
+ const manager=new SceneAutosave({storage:null,history:new HistoryManager(),
+  onStatusChange:next=>statuses.push(next.status)});
+ assert.equal(manager.schedule(()=>makeScene(),'empty-meadow'),false);
+ assert.deepEqual(statuses,['error']);
+ assert.ok(manager.pending);
+ assert.ok(manager.lastError);
+ assert.equal(manager.status,'error');
+});
+test('observer crashes are isolated from autosave storage',()=>{
+ const store=makeStorage();
+ const manager=new SceneAutosave({storage:store,history:new HistoryManager(),
+  onStatusChange:()=>{throw Error('UI crashed')},setTimer:()=>1,clearTimer:()=>{}});
+ assert.equal(manager.schedule(()=>makeScene(),'qs3d-island'),true);
+ assert.equal(manager.flush(),true);
+ assert.equal(manager.status,'saved');
+ assert.ok(store.getItem(SCENE_AUTOSAVE_KEY));
+});
+test('blocked storage after pending timer scheduled cancels stale timer and signals error',()=>{
+ let removed=0;const statuses=[];
+ const manager=new SceneAutosave({storage:makeStorage(),history:new HistoryManager(),
+  setTimer:()=>2,clearTimer:()=>{removed++},
+  onStatusChange:s=>statuses.push(s.status)});
+ manager.schedule(()=>makeScene(),'qs3d-island');
+ manager.storage=null;
+ manager.schedule(()=>makeScene(),'empty-meadow');
+ assert.equal(removed,1);
+ assert.equal(manager.timer,null);
+ assert.equal(manager.status,'error');
+ assert.deepEqual(statuses,['pending','error']);
+});

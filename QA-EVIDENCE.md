@@ -221,3 +221,20 @@ Chrome 157 via Playwright connectOverCDP used a separate browser context, leavin
 - Mobile screenshot: C:\ProgramData\QS3D\GladeDemo\pr12-library-cdp\scene-library-mobile.jpg
 
 The isolated QA Node process was stopped after its final success report. Shared Chrome/Session 0 remained alive and Session 2 was not touched.
+
+## 14/11/2026 — Autosave visibility, failure warning and one-click retry
+
+Previous releases protected per-map saves and quota failures, but the editor did not disclose whether a change was pending, written or failed. This PR adds a compact, accessible, always-visible status next to the map selector:
+- Chưa lưu: no successful checkpoint for the current editor session.
+- Đang lưu: unsaved changes scheduled for browser-local save.
+- Đã lưu lúc HH:MM: the localStorage slot and latest-scene pointer were written successfully.
+- Lỗi lưu: the real storage or serialization step failed. A visible Thử lại button retries the pending scene; when blocked storage remains blocked it continues to show Lỗi lưu. User can export portable JSON instead.
+
+Autosave status notifications use an optional observer invoked inside a fault boundary so HUD errors cannot make storage persistence fail. Explicit retry attempts the pending in-memory snapshot rather than inventing success. Clearing an old timer when storage becomes unavailable prevents stale callbacks. The view uses aria-live polite and skips repeated writes of identical text to reduce screen-reader noise. On a blocked localStorage or corrupt boot checkpoint the indicator shows an error instead of suggesting a healthy save.
+
+Evidence:
+- WIN11-181 isolated QA: npm test **126/126 PASS** (5 new status/failure/retry and faulty-observer tests), npm run build PASS, git diff --check PASS, npm audit --audit-level=moderate **0 vulnerabilities**.
+- Playwright E2E on localhost QA :5487 (Chrome 157, separate Session 0 CDP context): **success:true, errorCount:0**. Verified actual save at time=18.75, artificial QuotaExceededError left the old time=18.75 and revealed Thử lại, retry while denied stayed Lỗi lưu, restoring storage then retry wrote new time=21.75 and hid the error action. At viewport 390x844 the status chip remained reachable (left=219, right=325.58; docWidth=viewport=390).
+- QA JSON evidence: C:\ProgramData\QS3D\GladeDemo\pr13-autosave-qa\autosave-status-e2e.json.
+- Isolated QA Node process exited, shared CDP Chrome survived; Session 2, other projects, tunnels were not touched.
+- Secondary hardware check: DESKTOP-PHA1S90 Intel UHD Graphics 620 (driver 31.0.101.2141) Chrome 390x844 loaded production HTTP 200 but failed to reach the game-ready sentinel within 65 seconds (existing mini-gpu script exit code 1). This hardware result is **NOT PASS**; no reboot/network reset or changes to the Intel machine were made. Physical iOS/Android and longer endurance are not certified.

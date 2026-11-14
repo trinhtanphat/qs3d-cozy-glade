@@ -341,6 +341,13 @@ async function bootstrap() {
     },
     onExportJSON: () => hudCallbacks.onExport(),
     onLibraryOpen: () => sceneLibraryPanel?.open(),
+    onRetryAutosave: () => {
+      if (sceneAutosave?.flush()) {
+        hud?.showToast?.('Đã lưu thiết kế trên thiết bị này.', 2800);
+      } else {
+        hud?.showToast?.('Chưa lưu được. Hãy dùng Lưu để tải tệp JSON dự phòng.', 5000);
+      }
+    },
 
     onImport: async (file) => {
       if (!file) return;
@@ -464,7 +471,12 @@ async function bootstrap() {
   // Failure to read storage or validate a checkpoint must never block WebGL.
   let storage = null;
   try { storage = window.localStorage; } catch { /* Storage denied */ }
-  sceneAutosave = new SceneAutosave({ storage, history });
+  sceneAutosave = new SceneAutosave({
+    storage,
+    history,
+    onStatusChange: ({ status, savedAt }) => hud?.setAutosaveState?.({ status, savedAt }),
+  });
+  if (!storage) hud?.setAutosaveState?.({ status: 'error' });
   sceneLibraryPanel = installSceneLibraryPanel({
     autosave: sceneAutosave,
     history,
@@ -486,9 +498,11 @@ async function bootstrap() {
       hud.showToast?.('Đã khôi phục thiết kế tự lưu trên thiết bị này.', 3200);
     }).catch((error) => {
       console.warn('[qs3d] Autosave is damaged; opening a fresh scene:', error);
+      hud.setAutosaveState?.({ status: 'error' });
       hud.showToast?.('Bản tự lưu không đọc được. Bạn vẫn có thể mở tệp JSON.', 4200);
     });
   } else if (sceneAutosave.lastError) {
+    hud.setAutosaveState?.({ status: 'error' });
     hud.showToast?.('Không thể đọc bản tự lưu trên thiết bị.', 3200);
   }
   window.addEventListener('pagehide', () => sceneAutosave?.flush());
