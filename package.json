@@ -32,6 +32,7 @@
     "test:e2e": "node tests/e2e/autosave-gameplay.mjs",
     "test:e2e:slots": "node tests/e2e/preset-slots-gameplay.mjs",
     "test:e2e:quota": "node tests/e2e/storage-quota-gameplay.mjs",
+    "test:e2e:library": "node tests/e2e/scene-library-gameplay.mjs",
     "preview": "python3 -m http.server 8080"
   },
   "dependencies": {

@@ -191,3 +191,33 @@ Observed risk in the existing code: when localStorage quota/permissions failed, 
 - Reproducible browser scenario included as `npm run test:e2e:quota` under `tests/e2e/storage-quota-gameplay.mjs`, with actual mouse-house placement, artificial quota denial, confirmation cancellation and restoration test.
 - **Browser E2E not certified in this turn.** Existing headless Chrome launch on WIN11-181 exited unexpectedly (resource/session limits), and attaching Playwright via CDP closed the test context during navigation. Direct Private Commander browser navigation to staging worked but page text evaluation timed out; this automation's tab was restored to `https://example.com/`. DESKTOP-PHA1S90 remained disconnected. This is an explicit QA coverage gap, not a gameplay PASS.
 - No GitHub Actions used; no changes to Session 2, unrelated QS3D services or production tunnel during development.
+
+## 14/11/2026 — QS3D Studio Scene Library (all-map backup/restore)
+
+This release adds the Vietnamese **Thư viện** button to the editor toolbar, opening an accessible, scrollable backup dialog listing all five game maps, saved status, building/path counts and timestamps.
+
+Portable qs3d-cozy-glade-library v1 archive contains one validated JSON scene per saved map plus the **current live scene**, including edits not yet captured by autosave debounce. Downloads remain local and are not uploaded to any server. Import validates every included scene using the existing HistoryManager (type limits, entity counts, typed-array bounds and dangerous-key rejection) before any browser storage mutation.
+
+Import writes all included per-map records and then the active-map pointer. If any write fails due quota/storage permission, applied writes are rolled back wherever browser storage permits; if rollback fails, the interface warns explicitly. Unlisted maps remain unchanged. Import requires user confirmation and a successful import reloads the game. Old version-1 local scene saves remain readable.
+
+- npm test: **121/121 PASS**, including 10 new SceneLibraryArchive tests for multi-scene round trips, unsaved live snapshot, malformed and polluted archives, size caps, rollback on slot/pointer failures, and corrupt slot handling.
+- npm run build PASS, git diff --check PASS.
+- npm audit --omit=dev --audit-level=moderate: **0 vulnerabilities**.
+- Real Playwright E2E on isolated local QA origin (port 5487): build a house in Empty Meadow; open 5-map library; download a real archive (~670 KB) containing two maps; change time to 22:15; import previous backup and verify restoration of Island 08:15 and Meadow house; reject a malformed archive without changing stored data; resize browser to 390px and ensure dialog fits with no horizontal page overflow. Result **success:true, errorCount:0**.
+- Reproducible E2E: npm run test:e2e:library. Evidence: C:\ProgramData\QS3D\GladeDemo\pr12-library\qa-scene-library.json. Final E2E revision also validates reopening Thư viện at 390px by scrolling the toolbar button, and saves scene-library-mobile.jpg; that last subtest should be separately checked before claiming PASS.
+- This is browser-local backup, **not cloud synchronization**. Transfer the downloaded JSON manually to other devices. No modification to Win11 Session 2, unrelated QS3D sites/tunnels or GitHub Actions.
+
+### 14/11/2026 — Final end-to-end acceptance on shared Session 0 Chrome
+
+Chrome 157 via Playwright connectOverCDP used a separate browser context, leaving pre-existing tabs intact. On the isolated staging game at http://127.0.0.1:5487/ the full reproducible npm run test:e2e:library flow finished with **success:true, errorCount:0**, including:
+- 5 library map cards (2 with current/saved data).
+- Building one house using actual mouse clicks in Empty Meadow.
+- Real JSON download (670,488 bytes) containing 2 scenes and the currently edited Island at 08:15.
+- Changing Island to 22:15; restoring downloaded JSON by file input + confirmation; verifying Island restored to 08:15 and the Meadow house remained.
+- Submitting an invalid archive and verifying rejection with **no saved-localStorage mutation** after pending autosave completed.
+- Resizing to 390x844; dialog bounds [12px,378px], page width=390px (no overflow).
+- Closing library, scrolling horizontally to toolbar Thư viện button, clicking it and confirming the dialog reopens; JPEG snapshot captured.
+- Evidence JSON: C:\ProgramData\QS3D\GladeDemo\pr12-library-cdp\qa-scene-library.json
+- Mobile screenshot: C:\ProgramData\QS3D\GladeDemo\pr12-library-cdp\scene-library-mobile.jpg
+
+The isolated QA Node process was stopped after its final success report. Shared Chrome/Session 0 remained alive and Session 2 was not touched.

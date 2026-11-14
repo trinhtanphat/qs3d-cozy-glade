@@ -37334,6 +37334,365 @@ void main() {
     }
   };
 
+  // src/ux/SceneLibraryArchive.js
+  var SCENE_LIBRARY_FORMAT = "qs3d-cozy-glade-library";
+  var SCENE_LIBRARY_VERSION = 1;
+  var MAX_LIBRARY_BYTES = 24 * 1024 * 1024;
+  var MAX_SCENE_BYTES = 16 * 1024 * 1024;
+  var MAX_LIBRARY_SCENES = 10;
+  var DENIED_KEYS = /* @__PURE__ */ new Set(["__proto__", "prototype", "constructor"]);
+  var utf8Length = (text) => new TextEncoder().encode(text).length;
+  function sceneIds(presets) {
+    const ids = (presets || []).map((p) => typeof p === "string" ? p : p?.id);
+    if (!ids.length || ids.length > MAX_LIBRARY_SCENES || ids.some((id) => !sceneSlotKey(id)) || new Set(ids).size !== ids.length) {
+      throw new Error("Invalid preset list");
+    }
+    return ids;
+  }
+  function recordFor(sceneJSON, presetId, savedAt = Date.now()) {
+    return {
+      format: "qs3d-cozy-glade:autosave",
+      version: 1,
+      savedAt,
+      presetId,
+      sceneJSON
+    };
+  }
+  async function createSceneLibraryArchive({
+    autosave,
+    history,
+    presets,
+    activePresetId,
+    captureSnapshot
+  }) {
+    const ids = sceneIds(presets);
+    if (!ids.includes(activePresetId) || typeof captureSnapshot !== "function") {
+      throw new Error("Invalid active scene");
+    }
+    const latest = autosave?.read();
+    const scenes = [];
+    for (const presetId of ids) {
+      let sceneJSON;
+      if (presetId === activePresetId) {
+        sceneJSON = history.serializeJSON(captureSnapshot());
+      } else {
+        const slot = autosave?.readPresetSlot(presetId);
+        if (autosave?.lastError) {
+          throw new Error("Stored map is damaged: " + presetId);
+        }
+        sceneJSON = slot?.sceneJSON || (latest?.presetId === presetId ? latest.sceneJSON : null);
+      }
+      if (!sceneJSON) continue;
+      if (utf8Length(sceneJSON) > MAX_SCENE_BYTES) throw new Error("Map backup exceeds 16 MB");
+      await history.importJSON(sceneJSON);
+      scenes.push({ presetId, sceneJSON });
+    }
+    const archive = {
+      format: SCENE_LIBRARY_FORMAT,
+      version: SCENE_LIBRARY_VERSION,
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      activePresetId,
+      scenes
+    };
+    const json = JSON.stringify(archive);
+    if (utf8Length(json) > MAX_LIBRARY_BYTES) throw new Error("Library backup exceeds 24 MB");
+    return json;
+  }
+  async function validateSceneLibraryArchive(raw, { presets, history }) {
+    if (typeof raw !== "string" || utf8Length(raw) > MAX_LIBRARY_BYTES) {
+      throw new Error("Backup file is missing or exceeds 24 MB");
+    }
+    const allowed = new Set(sceneIds(presets));
+    let archive;
+    try {
+      archive = JSON.parse(raw, (key, value) => {
+        if (DENIED_KEYS.has(key)) throw new Error("Unsafe JSON member");
+        return value;
+      });
+    } catch {
+      throw new Error("Invalid or unsafe library JSON");
+    }
+    if (!archive || typeof archive !== "object" || Array.isArray(archive) || archive.format !== SCENE_LIBRARY_FORMAT || archive.version !== SCENE_LIBRARY_VERSION || !Array.isArray(archive.scenes) || archive.scenes.length < 1 || archive.scenes.length > allowed.size || !allowed.has(archive.activePresetId)) {
+      throw new Error("Unsupported library backup");
+    }
+    const seen = /* @__PURE__ */ new Set();
+    const scenes = [];
+    for (const item of archive.scenes) {
+      if (!item || typeof item !== "object" || Array.isArray(item) || !allowed.has(item.presetId) || seen.has(item.presetId) || typeof item.sceneJSON !== "string" || utf8Length(item.sceneJSON) > MAX_SCENE_BYTES) {
+        throw new Error("Duplicate, unknown, or oversized map in backup");
+      }
+      seen.add(item.presetId);
+      await history.importJSON(item.sceneJSON);
+      scenes.push({ presetId: item.presetId, sceneJSON: item.sceneJSON });
+    }
+    if (!seen.has(archive.activePresetId)) {
+      throw new Error("Active map is missing from backup");
+    }
+    return { activePresetId: archive.activePresetId, scenes };
+  }
+  function commitSceneLibraryArchive(validated, storage, now = Date.now()) {
+    if (!storage || !validated?.scenes?.length || !validated.scenes.some((s) => s.presetId === validated.activePresetId)) {
+      throw new Error("No valid scene library or available browser storage");
+    }
+    const values = /* @__PURE__ */ new Map();
+    for (const scene of validated.scenes) {
+      const key = sceneSlotKey(scene.presetId);
+      if (!key || typeof scene.sceneJSON !== "string") throw new Error("Invalid map slot");
+      values.set(key, JSON.stringify(recordFor(scene.sceneJSON, scene.presetId, now)));
+    }
+    const active = validated.scenes.find((s) => s.presetId === validated.activePresetId);
+    values.set(SCENE_AUTOSAVE_KEY, JSON.stringify(recordFor(active.sceneJSON, validated.activePresetId, now)));
+    const oldValues = /* @__PURE__ */ new Map();
+    try {
+      for (const key of values.keys()) oldValues.set(key, storage.getItem(key));
+    } catch {
+      throw new Error("Could not inspect existing browser backups");
+    }
+    const applied = [];
+    try {
+      for (const [key, value] of values) {
+        storage.setItem(key, value);
+        applied.push(key);
+      }
+    } catch (error) {
+      const failed = [];
+      for (const key of applied.reverse()) {
+        try {
+          const old = oldValues.get(key);
+          if (old === null) storage.removeItem(key);
+          else storage.setItem(key, old);
+        } catch {
+          failed.push(key);
+        }
+      }
+      if (failed.length) {
+        throw new Error("Import failed; rollback incomplete. Preserve existing JSON backups.");
+      }
+      throw new Error("Import failed; original local saves were restored.");
+    }
+    return { restored: validated.scenes.length, activePresetId: validated.activePresetId };
+  }
+  function describeSceneLibrary(autosave, presets, activePresetId, captureSnapshot) {
+    return (presets || []).map((preset) => {
+      const active = preset.id === activePresetId;
+      const saved = active ? null : autosave?.readPresetSlot(preset.id);
+      const current = active ? captureSnapshot() : null;
+      let scene = current;
+      if (!active && saved?.sceneJSON) {
+        try {
+          scene = JSON.parse(saved.sceneJSON)?.scene;
+        } catch {
+          scene = null;
+        }
+      }
+      return {
+        id: preset.id,
+        label: preset.label,
+        active,
+        saved: active || !!saved,
+        savedAt: active ? autosave?.lastSavedAt || null : saved?.savedAt || null,
+        buildings: Array.isArray(scene?.arch?.buildings) ? scene.arch.buildings.length : 0,
+        paths: Array.isArray(scene?.arch?.paths) ? scene.arch.paths.length : 0,
+        damaged: !active && !!autosave?.lastError
+      };
+    });
+  }
+
+  // src/ux/SceneLibraryPanel.js
+  function el(tag, cls = "", content) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (content !== void 0) node.textContent = String(content);
+    return node;
+  }
+  function downloadJSON(json) {
+    const href = URL.createObjectURL(new Blob([json], { type: "application/json;charset=utf-8" }));
+    const a = el("a");
+    a.download = "qs3d-glade-tat-ca-ban-do-" + (/* @__PURE__ */ new Date()).toISOString().slice(0, 10) + ".json";
+    a.href = href;
+    a.style.display = "none";
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1500);
+  }
+  function installSceneLibraryPanel({
+    autosave,
+    history,
+    presets,
+    getActivePresetId,
+    captureSnapshot,
+    onRestored
+  }) {
+    const overlay = el("div", "tg-library-backdrop");
+    overlay.id = "tg-scene-library";
+    overlay.hidden = true;
+    const panel = el("section", "tg-library-panel");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "tg-library-title");
+    panel.tabIndex = -1;
+    const header = el("div", "tg-library-header");
+    const heading = el("div");
+    heading.append(el("div", "tg-library-eyebrow", "QS3D \xB7 STUDIO"));
+    const title = el("h2", "", "Th\u01B0 vi\u1EC7n thi\u1EBFt k\u1EBF");
+    title.id = "tg-library-title";
+    heading.append(title, el("p", "", "Qu\u1EA3n l\xFD b\u1EA3n \u0111\u1ED3 v\xE0 sao l\u01B0u to\xE0n b\u1ED9 c\xF4ng tr\xECnh v\u1EC1 thi\u1EBFt b\u1ECB c\u1EE7a b\u1EA1n."));
+    const close = el("button", "tg-library-close", "\u0110\xF3ng \xD7");
+    close.type = "button";
+    close.dataset.action = "library-close";
+    close.setAttribute("aria-label", "\u0110\xF3ng th\u01B0 vi\u1EC7n thi\u1EBFt k\u1EBF");
+    header.append(heading, close);
+    const stats = el("div", "tg-library-summary");
+    stats.setAttribute("aria-live", "polite");
+    const list = el("div", "tg-library-grid");
+    const help = el(
+      "p",
+      "tg-library-help",
+      "Thi\u1EBFt k\u1EBF l\u01B0u t\u1EA1i tr\xECnh duy\u1EC7t n\xE0y; kh\xF4ng t\u1EF1 \u0111\u1ED3ng b\u1ED9 t\xE0i kho\u1EA3n. T\u1EC7p sao l\u01B0u ch\u1EE9a b\u1EA3n \u0111\u1ED3 \u0111ang m\u1EDF v\xE0 c\xE1c b\u1EA3n \u0111\u1ED3 \u0111\xE3 l\u01B0u."
+    );
+    const actions = el("div", "tg-library-actions");
+    const exportBtn = el("button", "tg-library-primary", "\u2193 Sao l\u01B0u t\u1EA5t c\u1EA3");
+    exportBtn.type = "button";
+    exportBtn.dataset.action = "library-export";
+    const importBtn = el("button", "tg-library-secondary", "\u2191 Kh\xF4i ph\u1EE5c t\u1EEB t\u1EC7p");
+    importBtn.type = "button";
+    importBtn.dataset.action = "library-import";
+    const fileInput = el("input");
+    fileInput.type = "file";
+    fileInput.accept = ".json,application/json";
+    fileInput.hidden = true;
+    fileInput.setAttribute("aria-label", "Ch\u1ECDn t\u1EC7p sao l\u01B0u c\xE1c b\u1EA3n \u0111\u1ED3");
+    actions.append(exportBtn, importBtn, fileInput);
+    const status = el("p", "tg-library-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    panel.append(header, stats, list, help, actions, status);
+    overlay.append(panel);
+    document.body.append(overlay);
+    let previousFocus = null;
+    let busy = false;
+    const setBusy = (value) => {
+      busy = value;
+      exportBtn.disabled = value;
+      importBtn.disabled = value;
+      close.disabled = value;
+    };
+    const inform = (message, failure = false) => {
+      status.textContent = message;
+      status.classList.toggle("is-error", failure);
+    };
+    function refresh() {
+      const rows = describeSceneLibrary(autosave, presets, getActivePresetId(), captureSnapshot);
+      list.replaceChildren();
+      for (const scene of rows) {
+        const card = el("article", "tg-library-item");
+        card.append(el("strong", "", scene.label));
+        card.append(el(
+          "span",
+          "tg-library-indicator" + (scene.active ? " is-current" : ""),
+          scene.active ? "\u0110ang m\u1EDF" : scene.damaged ? "B\u1EA3n l\u01B0u l\u1ED7i" : scene.saved ? "\u0110\xE3 l\u01B0u" : "Ch\u01B0a x\xE2y"
+        ));
+        card.append(el("p", "", scene.buildings + " c\xF4ng tr\xECnh \xB7 " + scene.paths + " con \u0111\u01B0\u1EDDng"));
+        if (scene.savedAt && Number.isFinite(scene.savedAt)) {
+          const date = new Date(scene.savedAt);
+          if (!Number.isNaN(date.getTime())) card.append(el("small", "", "L\u01B0u: " + date.toLocaleString("vi-VN")));
+        }
+        list.append(card);
+      }
+      stats.textContent = rows.length + " b\u1EA3n \u0111\u1ED3 \xB7 " + rows.filter((s) => s.saved).length + " b\u1EA3n \u0111\u1ED3 c\xF3 d\u1EEF li\u1EC7u";
+    }
+    function open() {
+      if (busy) return;
+      previousFocus = document.activeElement;
+      inform("");
+      refresh();
+      overlay.hidden = false;
+      panel.focus();
+    }
+    function dismiss() {
+      if (busy || overlay.hidden) return;
+      overlay.hidden = true;
+      previousFocus?.focus?.();
+    }
+    close.addEventListener("click", dismiss);
+    overlay.addEventListener("pointerdown", (event) => {
+      if (event.target === overlay) dismiss();
+      event.stopPropagation();
+    });
+    panel.addEventListener("pointerdown", (event) => event.stopPropagation());
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        dismiss();
+      }
+      if (event.key === "Tab") {
+        const available = [close, exportBtn, importBtn].filter((b) => !b.disabled);
+        if (event.shiftKey && document.activeElement === available[0]) {
+          event.preventDefault();
+          available[available.length - 1].focus();
+        } else if (!event.shiftKey && document.activeElement === available[available.length - 1]) {
+          event.preventDefault();
+          available[0].focus();
+        }
+      }
+    });
+    exportBtn.addEventListener("click", async () => {
+      if (busy) return;
+      setBusy(true);
+      inform("\u0110ang ki\u1EC3m tra to\xE0n b\u1ED9 b\u1EA3n \u0111\u1ED3\u2026");
+      try {
+        const json = await createSceneLibraryArchive({
+          autosave,
+          history,
+          presets,
+          activePresetId: getActivePresetId(),
+          captureSnapshot
+        });
+        downloadJSON(json);
+        inform("\u0110\xE3 t\u1EA1o t\u1EC7p sao l\u01B0u " + Math.round(new Blob([json]).size / 1024) + " KB. Ki\u1EC3m tra T\u1EA3i xu\u1ED1ng.");
+      } catch (error) {
+        inform("Kh\xF4ng xu\u1EA5t \u0111\u01B0\u1EE3c: " + error.message + ". H\xE3y d\xF9ng n\xFAt L\u01B0u JSON cho b\u1EA3n \u0111\u1ED3 \u0111ang m\u1EDF.", true);
+      } finally {
+        setBusy(false);
+      }
+    });
+    importBtn.addEventListener("click", () => {
+      if (!busy) fileInput.click();
+    });
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+      fileInput.value = "";
+      if (!file || busy) return;
+      if (file.size > MAX_LIBRARY_BYTES) {
+        inform("T\u1EC7p v\u01B0\u1EE3t gi\u1EDBi h\u1EA1n sao l\u01B0u 24 MB.", true);
+        return;
+      }
+      setBusy(true);
+      inform("\u0110ang x\xE1c th\u1EF1c t\u1EA5t c\u1EA3 b\u1EA3n \u0111\u1ED3\u2026");
+      try {
+        const validated = await validateSceneLibraryArchive(await file.text(), { presets, history });
+        const approval = window.confirm(
+          "Kh\xF4i ph\u1EE5c " + validated.scenes.length + " b\u1EA3n \u0111\u1ED3? B\u1EA3n l\u01B0u tr\xF9ng t\xEAn s\u1EBD b\u1ECB thay th\u1EBF. N\xEAn sao l\u01B0u hi\u1EC7n t\u1EA1i tr\u01B0\u1EDBc khi ti\u1EBFp t\u1EE5c."
+        );
+        if (!approval) {
+          inform("\u0110\xE3 h\u1EE7y. D\u1EEF li\u1EC7u kh\xF4ng thay \u0111\u1ED5i.");
+          return;
+        }
+        const restored = commitSceneLibraryArchive(validated, autosave?.storage);
+        autosave?.cancelPending();
+        inform("\u0110\xE3 kh\xF4i ph\u1EE5c " + restored.restored + " b\u1EA3n \u0111\u1ED3. \u0110ang m\u1EDF l\u1EA1i game\u2026");
+        onRestored?.(restored);
+      } catch (error) {
+        inform("Kh\xF4i ph\u1EE5c th\u1EA5t b\u1EA1i: " + error.message, true);
+      } finally {
+        setBusy(false);
+      }
+    });
+    return { open, close: dismiss, refresh, element: overlay };
+  }
+
   // src/ux/PresetSwitchGuard.js
   function maySwitchPreset({ autosave, confirmDiscard, onCancel }) {
     if (!autosave?.pending) return true;
@@ -38355,6 +38714,7 @@ void main() {
     { id: "night", label: "Ban \u0111\xEAm", hours: 21.6 }
   ];
   var ICONS = {
+    library: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8M8 17h5"/></svg>`,
     reset: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11a8.5 8.5 0 1 1 2.4 6"/><path d="M3.5 4.5V11H10"/><path d="M12 7v5l3.5 2.5"/></svg>`,
     undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H12"/></svg>`,
     redo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H12"/></svg>`,
@@ -38382,14 +38742,14 @@ void main() {
     if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`;
     return String(Math.round(v));
   }
-  function stopCanvasPropagation(el) {
+  function stopCanvasPropagation(el2) {
     const stop = (e) => e.stopPropagation();
-    el.addEventListener("pointerdown", stop);
-    el.addEventListener("pointermove", stop);
-    el.addEventListener("mousedown", stop);
-    el.addEventListener("wheel", stop, { passive: true });
-    el.addEventListener("dblclick", stop);
-    el.addEventListener("contextmenu", stop);
+    el2.addEventListener("pointerdown", stop);
+    el2.addEventListener("pointermove", stop);
+    el2.addEventListener("mousedown", stop);
+    el2.addEventListener("wheel", stop, { passive: true });
+    el2.addEventListener("dblclick", stop);
+    el2.addEventListener("contextmenu", stop);
   }
   var HUDController = class {
     constructor(rootElement, callbacks = {}) {
@@ -38467,9 +38827,9 @@ void main() {
     _cbCapture() {
       (this.callbacks.onCapturePhoto || this.callbacks.onScreenshot)?.();
     }
-    _blurOnPointer(e, el) {
-      if (e && e.detail > 0 && el && typeof el.blur === "function") {
-        el.blur();
+    _blurOnPointer(e, el2) {
+      if (e && e.detail > 0 && el2 && typeof el2.blur === "function") {
+        el2.blur();
       }
     }
     _buildDOM() {
@@ -38544,7 +38904,12 @@ void main() {
         fileInput.click();
       });
       importBtn.dataset.action = "import";
-      topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, fileInput);
+      const libraryBtn = this._makeIconBtn(ICONS.library, "Th\u01B0 vi\u1EC7n", "Sao l\u01B0u v\xE0 kh\xF4i ph\u1EE5c t\u1EA5t c\u1EA3 b\u1EA3n \u0111\u1ED3", () => {
+        this._tick();
+        this.callbacks.onLibraryOpen?.();
+      });
+      libraryBtn.dataset.action = "library";
+      topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, libraryBtn, fileInput);
       const topRightWrap = document.createElement("div");
       topRightWrap.className = "tg-top-right-wrap";
       const topRight = document.createElement("div");
@@ -39511,15 +39876,15 @@ void main() {
      * Updates real live telemetry readout ({ fps, frameMs, drawCalls, triangles, quality }).
      */
     updateStats(stats = {}) {
-      const el = this._els.perfPanel;
-      if (!el || !this._perfVisible) return;
+      const el2 = this._els.perfPanel;
+      if (!el2 || !this._perfVisible) return;
       const fps = stats.fps !== void 0 ? Math.round(Number(stats.fps) || 0) : "--";
       const ms = stats.frameMs !== void 0 ? Number(stats.frameMs || 0).toFixed(1) : "--";
       const draws = stats.drawCalls !== void 0 ? Math.round(Number(stats.drawCalls) || 0) : "--";
       const tris = stats.triangles !== void 0 ? formatCompactCount(stats.triangles) : "--";
       const qualRaw = String(stats.quality || this._envOptions.quality || "high");
       const qual = qualRaw.charAt(0).toUpperCase() + qualRaw.slice(1);
-      el.textContent = `${fps} FPS \xB7 ${ms} ms \xB7 ${draws} draws \xB7 ${tris} tris \xB7 ${qual}`;
+      el2.textContent = `${fps} FPS \xB7 ${ms} ms \xB7 ${draws} draws \xB7 ${tris} tris \xB7 ${qual}`;
     }
     /**
      * Enables / disables Undo & Redo buttons cleanly.
@@ -39593,18 +39958,18 @@ void main() {
      * Displays a concise, auto-dismissing status toast at top-center.
      */
     showToast(msg, durationMs = 2500) {
-      const el = this._els.toast;
-      if (!el || !msg) return;
-      el.textContent = String(msg);
-      el.hidden = false;
-      el.classList.add("is-visible");
+      const el2 = this._els.toast;
+      if (!el2 || !msg) return;
+      el2.textContent = String(msg);
+      el2.hidden = false;
+      el2.classList.add("is-visible");
       if (this._toastTimer) {
         clearTimeout(this._toastTimer);
       }
       this._toastTimer = setTimeout(() => {
-        el.classList.remove("is-visible");
+        el2.classList.remove("is-visible");
         this._toastTimer = setTimeout(() => {
-          el.hidden = true;
+          el2.hidden = true;
         }, 220);
       }, durationMs);
     }
@@ -39742,10 +40107,10 @@ void main() {
     if (diff < -Math.PI) diff += Math.PI * 2;
     return current + diff * (1 - Math.exp(-lambda * dt));
   }
-  function isEditableElement(el) {
-    if (!el) return false;
-    const tag = el.tagName;
-    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+  function isEditableElement(el2) {
+    if (!el2) return false;
+    const tag = el2.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el2.isContentEditable;
   }
   var CameraController = class {
     constructor({
@@ -42119,6 +42484,7 @@ void main() {
     let currentPresetId = "qs3d-island";
     let sceneLoadEpoch = 0;
     let sceneAutosave = null;
+    let sceneLibraryPanel = null;
     const scheduleAutosave = () => sceneAutosave?.schedule(captureSnapshot, currentPresetId);
     const updateHistoryButtons = () => {
       hud?.setHistoryState?.(history.canUndo(), history.canRedo());
@@ -42296,6 +42662,7 @@ void main() {
         hud?.showToast?.("\u0110\xE3 xu\u1EA5t c\u1EA3nh th\xE0nh t\u1EC7p JSON");
       },
       onExportJSON: () => hudCallbacks.onExport(),
+      onLibraryOpen: () => sceneLibraryPanel?.open(),
       onImport: async (file) => {
         if (!file) return;
         audio.unlock?.();
@@ -42405,6 +42772,14 @@ void main() {
     } catch {
     }
     sceneAutosave = new SceneAutosave({ storage, history });
+    sceneLibraryPanel = installSceneLibraryPanel({
+      autosave: sceneAutosave,
+      history,
+      presets: PRESET_SCENES,
+      getActivePresetId: () => currentPresetId,
+      captureSnapshot,
+      onRestored: () => window.location.reload()
+    });
     const checkpoint = sceneAutosave.mostRecentCheckpoint(PRESET_SCENES.map((p) => p.id));
     if (checkpoint) {
       void history.importJSON(checkpoint.sceneJSON).then((snapshot) => {
@@ -42440,6 +42815,7 @@ void main() {
       captureSnapshot,
       applySnapshot,
       sceneAutosave,
+      sceneLibraryPanel,
       adaptiveQuality
     };
     let prevTime = performance.now();

@@ -134,6 +134,7 @@ const TIME_PRESETS = [
 ];
 
 const ICONS = {
+  library: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8M8 17h5"/></svg>`,
   reset: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11a8.5 8.5 0 1 1 2.4 6"/><path d="M3.5 4.5V11H10"/><path d="M12 7v5l3.5 2.5"/></svg>`,
   undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H12"/></svg>`,
   redo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H12"/></svg>`,
@@ -358,7 +359,13 @@ export class HUDController {
     });
     importBtn.dataset.action = 'import';
 
-    topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, fileInput);
+    const libraryBtn = this._makeIconBtn(ICONS.library, 'Thư viện', 'Sao lưu và khôi phục tất cả bản đồ', () => {
+      this._tick();
+      this.callbacks.onLibraryOpen?.();
+    });
+    libraryBtn.dataset.action = 'library';
+
+    topLeft.append(presetWrap, resetPresetBtn, divider1, undoBtn, redoBtn, divider2, exportBtn, importBtn, libraryBtn, fileInput);
 
     // =========================================================================
     // 2. TOP-RIGHT ATMOSPHERE, CAMERA & QUALITY BAR
