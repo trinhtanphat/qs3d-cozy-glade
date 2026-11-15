@@ -12,6 +12,7 @@ const { chromium } = require('playwright-core');
 const fs = require('node:fs');
 const path = require('node:path');
 const { inspectWindowsHost } = require('./gpu-host-safety.cjs');
+const { runGuardedGpuSequence } = require('./gpu-run-safety.cjs');
 
 const url = process.env.GAME_URL || 'https://glade.qs3d.site/';
 const chromeBin = process.env.CHROME_BIN ||
@@ -25,7 +26,7 @@ fs.mkdirSync(dest, { recursive: true });
 const report = {
   testedAt: new Date().toISOString(),
   url, rendererPattern, minFps, readinessTimeout,
-  runs: [], success: false, note: 'Local GPU-only acceptance, not a physical phone or browser compatibility certification.',
+  runs: [], hostSafetyChecks: [], success: false, note: 'Local GPU-only acceptance, not a physical phone or browser compatibility certification.',
 };
 const output = path.join(dest, 'gpu-hardware-smoke.json');
 const write = () => fs.writeFileSync(output, JSON.stringify(report, null, 2), 'utf8');
@@ -151,26 +152,32 @@ async function runOnce(number) {
 }
 
 (async () => {
-  // Strictly read-only preflight. Do not launch Chrome on an unstable host.
-  const hostSafety = inspectWindowsHost();
-  report.hostSafety = hostSafety;
-  if (!hostSafety.safe) {
-    report.failure = 'GPU test blocked for host safety: ' + hostSafety.problems.join('; ');
+  // Fail closed before EACH run and after EACH run. An initial healthy snapshot
+  // must not authorize later GPU work if PCIe errors/reboots develop mid-suite.
+  const outcome = await runGuardedGpuSequence({
+    runs, inspectHost: inspectWindowsHost, runOnce,
+    onCheck: entry => {
+      report.hostSafetyChecks.push(entry);
+      if (entry.stage === 'before' && entry.run === 1) report.hostSafety = entry.safety;
+      write();
+    },
+  });
+  if (outcome.blocked) {
+    report.failure = 'GPU test blocked for host safety (' + outcome.stage +
+      ' run ' + outcome.run + '): ' + outcome.problems.join('; ');
+    report.success = false;
     write();
-    console.error('GPU_HOST_PREFLIGHT_BLOCKED: ' + report.failure);
-    console.error('NO_GPU_BROWSER_LAUNCHED REPORT=' + output);
+    console.error('GPU_HOST_SAFETY_BLOCKED: ' + report.failure);
+    if (outcome.completedRuns === 0) console.error('NO_GPU_BROWSER_LAUNCHED REPORT=' + output);
+    else console.error('GPU_SUITE_STOPPED_AFTER_HOST_DETERIORATION REPORT=' + output);
     process.exitCode = 3;
     return;
   }
-  let pass = true;
-  for (let i = 1; i <= runs; i++) {
-    if (!(await runOnce(i))) pass = false;
-  }
-  report.success = pass;
+  report.success = outcome.success;
   write();
-  console.log('GPU_HARDWARE_ACCEPTANCE=' + (pass ? 'PASS' : 'FAIL') +
-    ' RUNS=' + runs + ' REPORT=' + output);
-  if (!pass) process.exitCode = 1;
+  console.log('GPU_HARDWARE_ACCEPTANCE=' + (outcome.success ? 'PASS' : 'FAIL') +
+    ' RUNS=' + outcome.completedRuns + ' REPORT=' + output);
+  if (!outcome.success) process.exitCode = 1;
 })().catch(error => {
   report.failure = String(error?.stack || error).slice(0,1200);
   report.success = false;
