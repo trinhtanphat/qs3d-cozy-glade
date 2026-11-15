@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const source = readFileSync(new URL('./diagnostics/pha-host-incident-readonly.ps1', import.meta.url), 'utf8');
 const reader = source.match(/function Read-Events\([\s\S]*?\n}\s*\n/)?.[0];
@@ -21,8 +22,7 @@ test('all PHA forensic event categories use fail-closed reader', () => {
 });
 
 test('PowerShell can parse PHA forensic script without executing hardware probes', { skip: process.platform !== 'win32' }, () => {
-  const pathname = new URL('./diagnostics/pha-host-incident-readonly.ps1', import.meta.url).pathname.replace(/^\/(?=[A-Za-z]:)/, '');
-  const argument = '[ref]$null';
+  const pathname = fileURLToPath(new URL('./diagnostics/pha-host-incident-readonly.ps1', import.meta.url));
   const command = '$null=$tokens=$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile(\'' +
     pathname.replaceAll("'", "''") + "', [ref]$tokens, [ref]$errors) > $null; if($errors.Count -gt 0){$errors | Out-String; exit 2}";
   const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
