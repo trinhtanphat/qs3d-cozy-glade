@@ -17,7 +17,8 @@ if (-not $os) { throw 'Cannot determine OS boot time' }
 function Read-Events([int]$Id, [datetime]$From) {
   try { return @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=$Id; StartTime=$From} -ErrorAction Stop) }
   catch {
-    if ($_.Exception.Message -match 'No events were found') { return @() }
+    # A genuine empty window is not an error; other Event Log failures must abort.
+    if ($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*') { return @() }
     throw
   }
 }
