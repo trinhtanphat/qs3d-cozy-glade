@@ -24,6 +24,8 @@ Updated 14 November 2026. Applies to DESKTOP-PHA1S90 (Dell Inspiron 3476), a sep
 6. Validate stability first: 24 hours without Kernel-Power 41 / EventLog 6008, 120+ minutes uptime, and at most four WHEA 17 events/hour; the automated GPU safety gate refuses to launch hardware workloads until these conditions are met.
 7. Then perform 3/3 short GPU D3D11 hardware smoke with the conservative Chrome configuration and collect evidence, followed by a bounded extended QA when stable. Physical Android/iOS testing and many-hour endurance require independent evidence.
 
+For technician-ready physical repair steps, evidence fields and safe acceptance criteria, see [PHA-ONSITE-HANDOFF.md](./PHA-ONSITE-HANDOFF.md). This is a physical-service checklist; it must not be executed as remote power/BIOS work.
+
 ## Portable read-only forensic snapshot
 
 Run on a dedicated PowerShell session, from the repository checkout:
