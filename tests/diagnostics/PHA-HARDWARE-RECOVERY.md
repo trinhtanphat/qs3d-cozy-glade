@@ -56,3 +56,11 @@ References:
 - https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/event-id-41-restart
 - https://learn.microsoft.com/en-us/windows/configuration/unified-write-filter/hibernate-once-resume-many-horm
 - https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/fast-startup-causes-system-hibernation-shutdown-fail
+
+## 15 Nov 2026 ~07:08 VN — repeat reboot and forensic empty-event hardening
+
+New strictly read-only checks confirmed another Windows boot at **07:02:09 VN** (previous known boot **06:14:18 VN**), **6 Kernel-Power 41** and **6 EventLog 6008** events in the prior 24 hours, and **201 corrected WHEA17** events in the trailing 60 minutes. `HiberbootEnabled=0` remained unchanged; PHA was on Qualcomm Wi-Fi 390 Mbps with no Ethernet link. These are rolling-window measurements, not evidence that each WHEA event caused a reboot. They reinforce that disabling Fast Startup did not resolve the unexpected restart symptom.
+
+The forensic collector now recognizes a true empty Windows event query using PowerShell's `NoMatchingEventsFound` error ID, rather than matching a localized English error message. It still throws all unrelated Event Log failures (fail-closed). This matters during post-repair acceptance when **zero** recent reboot events may be correct; lack of permissions or unreadable logs must not masquerade as a clean system. This diagnostic change is not a repair of the PHA hardware.
+
+**Acceptance remains blocked** until physical power/battery/DC jack and PCIe/Wi-Fi investigation with verified wired/out-of-band fallback; do not attempt automatic GPU QA on the unstable Wi-Fi-only host. Keep GitHub issue #17 OPEN.
